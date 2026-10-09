@@ -1,0 +1,109 @@
+.mission-proposals {
+  margin-top: 10px;
+  border-left: 4px solid var(--violet);
+}
+.proposal-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.proposal-heading h2 {
+  margin-bottom: 8px;
+}
+.proposal-heading p {
+  margin-bottom: 12px;
+}
+.proposal-heading label {
+  display: grid;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.proposal-heading select {
+  font: inherit;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  padding: 9px;
+  border-radius: 6px;
+  background: white;
+}
+.proposal-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.proposal-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 15px 0;
+  border-top: 1px solid var(--border);
+}
+.proposal-list li > div {
+  min-width: 0;
+}
+.proposal-list li > div > a {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.proposal-list small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.8;
+  margin-top: 5px;
+}
+.proposal-list .secondary {
+  flex-shrink: 0;
+}
+.proposal-notice,
+.proposal-review {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border: 1px solid #efd7ab;
+  border-radius: 9px;
+  padding: 18px;
+  margin-bottom: 24px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.proposal-notice.rejected {
+  color: var(--coral);
+  background: var(--coral-soft);
+  border-color: #efc4b9;
+}
+.proposal-review {
+  background: var(--violet-soft);
+  color: var(--ink);
+  border-color: #dfcffa;
+}
+.proposal-review label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.proposal-review textarea {
+  width: 100%;
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 12px;
+  margin-bottom: 15px;
+  resize: vertical;
+}
+.status-display {
+  display: inline-block;
+  cursor: default;
+}
+.kanban-card[draggable='false'] {
+  cursor: default;
+}
+@media (max-width: 550px) {
+  .proposal-list li {
+    flex-wrap: wrap;
+  }
+}

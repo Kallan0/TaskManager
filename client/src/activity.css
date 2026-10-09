@@ -1,0 +1,115 @@
+.activity-preview-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.activity-preview-heading h2 {
+  margin: 0;
+}
+.activity-preview-heading .secondary {
+  font-size: 11px;
+  padding: 8px 12px;
+}
+.activity-preview .activity-list {
+  margin: 0;
+}
+.activity-preview .activity-list li {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.activity-preview .activity-list p {
+  margin-bottom: 6px;
+}
+.activity-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: 82dvh;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 24px 90px #20234445;
+}
+.activity-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.activity-dialog::backdrop {
+  background: rgba(25, 30, 55, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.activity-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 28px;
+  background: linear-gradient(115deg, var(--blue-soft), var(--violet-soft));
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.activity-dialog-header h2 {
+  margin: 8px 0 0;
+  font-size: 20px;
+}
+.activity-dialog-close {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid #d9d4ed;
+  border-radius: 9px;
+  background: white;
+  color: var(--violet);
+}
+.activity-dialog-close:hover {
+  background: var(--violet-soft);
+}
+.activity-dialog-content {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 28px 20px;
+  min-height: 0;
+}
+.activity-dialog-content .activity-list li {
+  display: flex;
+  gap: 12px;
+}
+.activity-dialog-content .activity-list p {
+  margin-bottom: 5px;
+  overflow-wrap: anywhere;
+}
+.activity-dialog-content .activity-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  margin-top: 9px;
+  border-radius: 50%;
+  background: var(--violet);
+  box-shadow: 0 0 0 4px var(--violet-soft);
+}
+.activity-dialog-content .activity-list li:nth-child(3n + 2) .activity-dot {
+  background: var(--blue);
+  box-shadow: 0 0 0 4px var(--blue-soft);
+}
+.activity-dialog-content .activity-list li:nth-child(3n) .activity-dot {
+  background: var(--teal);
+  box-shadow: 0 0 0 4px var(--teal-soft);
+}
+@media (max-width: 550px) {
+  .activity-dialog-header {
+    padding: 20px;
+  }
+  .activity-dialog-header h2 {
+    font-size: 17px;
+  }
+  .activity-dialog-content {
+    padding: 8px 20px 18px;
+  }
+}

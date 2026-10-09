@@ -1,0 +1,546 @@
+:root {
+  --ink: #26324d;
+  --muted: #626e86;
+  --border: #e0e5f0;
+  --blue: #2859c5;
+  --blue-soft: #eaf1ff;
+  --violet: #7543be;
+  --violet-soft: #f3ebff;
+  --amber: #8f530d;
+  --amber-soft: #fff3dc;
+  --teal: #08776d;
+  --teal-soft: #ddf6ef;
+  --rose: #b32c61;
+  --rose-soft: #ffe8f0;
+  --coral: #ac3d30;
+  --coral-soft: #ffebe3;
+  color: var(--ink);
+  background: #f6f7fc;
+}
+.password-input {
+  position: relative;
+}
+.field .password-input input {
+  padding-right: 50px;
+}
+.password-visibility {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+}
+.password-visibility:hover {
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+.crew-suggestions {
+  border: 0;
+  padding: 0;
+  margin: 0 0 24px;
+}
+.invite-share-actions {
+  margin-top: 12px;
+}
+.crew-suggestions legend {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--violet);
+}
+.crew-suggestions p,
+.crew-role-guide {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.crew-suggestions p {
+  margin: 8px 0 12px;
+}
+.crew-suggestions > div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.crew-suggestions button {
+  border: 1px solid #c7d8ff;
+  background: var(--blue-soft);
+  color: var(--blue);
+  border-radius: 20px;
+  padding: 8px 13px;
+  font-size: 12px;
+}
+.crew-suggestions button:nth-child(2) {
+  background: var(--violet-soft);
+  color: var(--violet);
+  border-color: #decbf5;
+}
+.crew-suggestions button:nth-child(3) {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border-color: #f0d7a6;
+}
+.crew-suggestions button[aria-pressed='true'] {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.member-actions select {
+  width: auto;
+  min-width: 130px;
+}
+
+.workspace-main {
+  background:
+    radial-gradient(ellipse at 100% 0%, #eeeaff 0%, transparent 45%),
+    radial-gradient(ellipse at 0% 100%, #e9f6fb 0%, transparent 40%), #f6f7fc;
+}
+.sidebar,
+.topbar {
+  border-color: var(--border);
+}
+.sidebar {
+  background: linear-gradient(180deg, #ffffff, #f7f5ff);
+}
+.brand > svg {
+  color: var(--violet);
+}
+.sidebar .brand {
+  color: #343158;
+}
+.nav-label,
+.breadcrumb,
+.sidebar-bottom small {
+  color: var(--muted);
+}
+.nav-active {
+  background: var(--violet-soft);
+  color: #6434ab;
+  box-shadow: inset 3px 0 var(--violet);
+}
+.nav-item {
+  color: var(--muted);
+}
+.nav-item:hover {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.sidebar .nav-item svg {
+  color: var(--blue);
+}
+.sidebar .nav-item[href='/teams/new'] svg {
+  color: var(--rose);
+}
+.sidebar-bottom {
+  border-color: var(--border);
+}
+.avatar {
+  background: var(--violet-soft);
+  color: #6434ab;
+}
+.muted,
+.quiet,
+.pagination,
+.task-view-heading {
+  color: var(--muted);
+}
+.eyebrow,
+.back-link,
+.auth-switch a {
+  color: var(--blue);
+}
+.primary {
+  background: linear-gradient(120deg, #4b49c6, #285cc4);
+  box-shadow: 0 3px 10px #4549b51a;
+}
+.primary:hover {
+  background: linear-gradient(120deg, #403cad, #204fad);
+}
+.secondary {
+  border-color: #d7d3ef;
+  color: #6940a6;
+}
+.secondary:hover {
+  background: var(--violet-soft);
+}
+.danger-button,
+.danger-text {
+  color: var(--coral);
+}
+.danger-button:hover {
+  background: var(--coral-soft);
+  border-color: #efc4b9;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #8584ed;
+  outline-offset: 3px;
+}
+.field input,
+.field textarea,
+.field select,
+.member-actions select,
+.invite-success input,
+.task-toolbar input,
+.task-toolbar select {
+  color: var(--ink);
+  border-color: #d9deec;
+}
+.field input::placeholder,
+.field textarea::placeholder {
+  color: #758099;
+}
+.field input[aria-invalid='true'],
+.field textarea[aria-invalid='true'] {
+  border-color: var(--coral);
+}
+.field-error {
+  color: var(--coral);
+}
+.error-box {
+  background: var(--coral-soft);
+  color: #a13628;
+  border-color: #f0c7bd;
+}
+.success-message,
+.invite-success {
+  background: var(--teal-soft);
+  color: #096b61;
+  border-color: #bce8db;
+}
+.content-panel,
+.task-toolbar,
+.task-table-wrap,
+.invitation-panel {
+  border-color: var(--border);
+  box-shadow: 0 4px 16px #313e6410;
+}
+.empty-panel {
+  background: linear-gradient(120deg, #eef1ff, #f8edff, #fff3eb);
+  border-color: #c8c7e8;
+}
+.empty-panel p {
+  color: var(--muted);
+}
+.empty-icon {
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+
+/* Team cards cycle through six accent families. */
+.team-card {
+  --accent: var(--blue);
+  --wash: var(--blue-soft);
+  border-color: var(--border);
+  border-top: 4px solid var(--accent);
+  background: linear-gradient(150deg, var(--wash), #fff 58%);
+}
+.team-card:nth-child(6n + 2) {
+  --accent: var(--violet);
+  --wash: var(--violet-soft);
+}
+.team-card:nth-child(6n + 3) {
+  --accent: var(--teal);
+  --wash: var(--teal-soft);
+}
+.team-card:nth-child(6n + 4) {
+  --accent: var(--coral);
+  --wash: var(--coral-soft);
+}
+.team-card:nth-child(6n + 5) {
+  --accent: var(--rose);
+  --wash: var(--rose-soft);
+}
+.team-card:nth-child(6n + 6) {
+  --accent: var(--amber);
+  --wash: var(--amber-soft);
+}
+.team-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 6px 22px #4d4a851a;
+}
+.team-monogram {
+  background: var(--wash, var(--violet-soft));
+  color: var(--accent, var(--violet));
+}
+.team-card-bottom {
+  border-color: var(--border);
+  color: var(--accent);
+}
+.team-card p,
+.incoming-card p,
+.member-info small,
+.sent-invite small {
+  color: var(--muted);
+}
+.role-badge,
+.status-badge {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.role-badge.owner {
+  background: var(--violet-soft);
+  color: #6937af;
+}
+.role-badge.admin {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.role-badge.member {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+.status-badge.pending {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.status-badge.accepted {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+.status-badge.expired,
+.status-badge.revoked {
+  background: var(--coral-soft);
+  color: var(--coral);
+}
+.incoming-card {
+  border-color: #ded2ef;
+  border-left: 4px solid var(--violet);
+  background: linear-gradient(120deg, #faf5ff, #fff);
+}
+.team-summary {
+  background: linear-gradient(110deg, #eaf1ff, #f3ebff);
+  color: #4e4a8d;
+  border-color: #d6daf1;
+}
+.team-summary > span {
+  color: var(--muted);
+}
+.member-row,
+.sent-invite {
+  border-color: var(--border);
+}
+.member-row:nth-child(3n + 2) .avatar {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.member-row:nth-child(3n) .avatar {
+  background: var(--rose-soft);
+  color: var(--rose);
+}
+.team-tabs {
+  border-color: var(--border);
+}
+.team-tabs a {
+  color: var(--muted);
+}
+.team-tabs a:first-child.active {
+  color: var(--blue);
+  border-color: var(--blue);
+}
+.team-tabs a:nth-child(2).active {
+  color: var(--violet);
+  border-color: var(--violet);
+}
+.team-tabs a:nth-child(3).active {
+  color: var(--teal);
+  border-color: var(--teal);
+}
+
+/* Status colors repeat in totals, columns and controls. */
+.task-summary > div,
+.kanban-column {
+  --accent: var(--blue);
+  --wash: var(--blue-soft);
+}
+.task-summary > div:nth-child(2),
+.kanban-column.in_progress {
+  --accent: var(--amber);
+  --wash: var(--amber-soft);
+}
+.task-summary > div:nth-child(3),
+.kanban-column.in_review {
+  --accent: var(--violet);
+  --wash: var(--violet-soft);
+}
+.task-summary > div:nth-child(4),
+.kanban-column.done {
+  --accent: var(--teal);
+  --wash: var(--teal-soft);
+}
+.task-summary > div {
+  background: var(--wash);
+  border-color: var(--border);
+  border-top: 3px solid var(--accent);
+}
+.task-summary span,
+.task-summary strong {
+  color: var(--accent);
+}
+.task-toolbar label,
+.task-table small,
+.task-properties > div > span:first-child,
+.task-properties label,
+.kanban-card p,
+.task-card-meta,
+.activity-list time {
+  color: var(--muted);
+}
+.task-table th {
+  background: #eef1fa;
+  color: #515f7b;
+}
+.task-table td,
+.task-table th {
+  border-color: #e9edf5;
+}
+.task-table tbody tr:hover {
+  background: #f8f7ff;
+}
+.task-table td a:hover,
+.task-card-title:hover {
+  color: var(--violet);
+}
+.view-toggle {
+  background: #fff;
+  border-color: var(--border);
+}
+.view-toggle .active {
+  background: var(--violet-soft);
+  color: #6c37b1;
+}
+.task-status {
+  font-weight: 600;
+}
+.task-status.todo {
+  background: var(--blue-soft);
+  color: var(--blue);
+  border-color: #c7d8ff;
+}
+.task-status.in_progress {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border-color: #f0d7a6;
+}
+.task-status.in_review {
+  background: var(--violet-soft);
+  color: var(--violet);
+  border-color: #decbf5;
+}
+.task-status.done {
+  background: var(--teal-soft);
+  color: var(--teal);
+  border-color: #b2e4d7;
+}
+.task-status option {
+  background: #fff;
+  color: var(--ink);
+}
+.priority-badge.low {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.priority-badge.medium {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.priority-badge.high {
+  background: var(--coral-soft);
+  color: var(--coral);
+}
+.priority-badge.urgent {
+  background: var(--rose-soft);
+  color: var(--rose);
+}
+.overdue-date {
+  color: var(--coral);
+}
+.kanban-column {
+  background: var(--wash);
+  border-color: var(--border);
+  border-top: 3px solid var(--accent);
+}
+.kanban-column header {
+  color: var(--accent);
+}
+.kanban-column header > span {
+  background: white;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.kanban-column h2 span {
+  background: var(--accent);
+}
+.kanban-column.drag-over {
+  outline-color: var(--accent);
+  background: var(--wash);
+}
+.kanban-card {
+  border-color: #e1e5ef;
+  box-shadow: 0 3px 8px #37446a0a;
+}
+.kanban-card:hover {
+  border-color: var(--accent);
+}
+.column-empty {
+  color: var(--muted);
+}
+.add-column-task {
+  color: var(--accent);
+}
+.activity-list li {
+  border-color: var(--border);
+}
+.activity-list small {
+  color: var(--violet);
+}
+.activity-list a {
+  color: var(--blue);
+}
+
+.auth-story {
+  background:
+    radial-gradient(ellipse at 0% 100%, #196878, transparent 60%),
+    radial-gradient(ellipse at 100% 0%, #8756b6, transparent 55%), #373579;
+}
+.auth-story .brand > svg {
+  color: #e4c7ff;
+}
+.auth-story .light {
+  color: #ffcf99;
+}
+.story-content > p,
+.story-footer {
+  color: #e0e4fb;
+}
+.story-lines {
+  color: #eef1ff;
+}
+.story-lines > div:nth-child(3n + 1) svg {
+  color: #8ee1cf;
+}
+.story-lines > div:nth-child(3n + 2) svg {
+  color: #ffd28c;
+}
+.story-lines > div:nth-child(3n) svg {
+  color: #f5b6d5;
+}
+.auth-form-area {
+  background: linear-gradient(140deg, #fff, #f7f4ff 70%, #fff1e9);
+}
+.auth-switch,
+.auth-note {
+  color: var(--muted);
+}
+.invitation-page {
+  background: linear-gradient(135deg, #eef4ff, #f5edff 55%, #fff2e8);
+}

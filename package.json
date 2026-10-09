@@ -1,0 +1,35 @@
+{
+  "name": "team-task-planner",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "db:setup": "node scripts/setup-local.mjs && npm run db:start",
+    "db:start": "node scripts/local-db.mjs start",
+    "db:stop": "node scripts/local-db.mjs stop",
+    "db:status": "node scripts/local-db.mjs status",
+    "dev:local": "npm run db:start && npm run dev",
+    "dev": "concurrently -k -n api,web \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "test:responsive": "npm run build -w client && node scripts/check-responsive.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3",
+    "eslint": "^9.39.1",
+    "@eslint/js": "^9.39.1",
+    "typescript-eslint": "^8.46.1",
+    "globals": "^16.4.0",
+    "prettier": "^3.6.2"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
