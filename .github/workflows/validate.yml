@@ -12,7 +12,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - name: Check cross-platform dependency lockfile
+        run: node scripts/check-native-dependencies.mjs
+      - run: npm ci --include=optional
+      - name: Verify installed native dependencies
+        run: node scripts/check-native-dependencies.mjs --installed
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run format:check
