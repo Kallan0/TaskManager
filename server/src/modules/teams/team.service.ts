@@ -1,7 +1,9 @@
+import { AssignmentCleanup } from './cleanup.model.js';
+import { runCleanup } from './cleanup.service.js';
+import { teamMutation, mutation } from '../../utils/mutation.js';
 import { Team } from './team.model.js';
 import { Membership } from '../memberships/membership.model.js';
 import { User, publicUser } from '../auth/user.model.js';
-import { Task } from '../tasks/task.model.js';
 import {
   authorizeTeam,
   requireManager,
@@ -34,7 +36,7 @@ export function serializeTeam(
     createdAt: team.createdAt,
   };
 }
-export async function createTeam(userId: string, input: unknown) {
+async function createTeamInternal(userId: string, input: unknown) {
   const data = teamSchema.parse(input);
   const team = await Team.create({ ...data, owner: userId });
   try {
@@ -74,7 +76,7 @@ export async function getTeam(teamId: string, userId: string) {
     memberCount: await Membership.countDocuments({ team: teamId }),
   };
 }
-export async function updateTeam(
+async function updateTeamInternal(
   teamId: string,
   userId: string,
   input: unknown,
@@ -91,8 +93,17 @@ export async function listMembers(
 ) {
   await authorizeTeam(teamId, userId);
   const { page, limit } = paginationSchema.parse(query);
-  const total = await Membership.countDocuments({ team: teamId });
-  const memberships = await Membership.find({ team: teamId })
+  const q =
+    typeof (query as { q?: unknown })?.q === 'string'
+      ? (query as { q: string }).q.trim().slice(0, 80)
+      : '';
+  const escaped = q.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const filter = {
+    team: teamId,
+    ...(q ? { searchKeys: { $regex: '^' + escaped } } : {}),
+  };
+  const total = await Membership.countDocuments(filter);
+  const memberships = await Membership.find(filter)
     .sort({ joinedAt: 1, _id: 1 })
     .skip((page - 1) * limit)
     .limit(limit);
@@ -117,7 +128,7 @@ export async function listMembers(
     pages: Math.max(1, Math.ceil(total / limit)),
   };
 }
-export async function changeRole(
+async function changeRoleInternal(
   teamId: string,
   actorId: string,
   targetId: string,
@@ -145,7 +156,7 @@ export async function changeRole(
     );
   return { userId: targetId, role: target.role };
 }
-export async function removeMember(
+async function removeMemberInternal(
   teamId: string,
   actorId: string,
   targetId: string,
@@ -159,40 +170,34 @@ export async function removeMember(
     user: targetId,
     role: actor.role === 'owner' ? { $ne: 'owner' } : 'member',
   });
+  if (!target && !(await Membership.exists({ team: teamId, user: targetId })))
+    return;
   if (!target)
     throw new ApiError(
       403,
       'FORBIDDEN',
       'The Celestial cannot be removed; Holy Knights can only remove Commoners',
     );
-  const assigned = await Task.find({
-    team: teamId,
-    assignee: targetId,
-    deletedAt: null,
-  }).select('_id title');
-  await Promise.all(
-    assigned.map((task) =>
-      Task.updateOne(
-        { _id: task._id, assignee: targetId, deletedAt: null },
-        {
-          $set: { assignee: null },
-          $inc: { __v: 1 },
-          $push: {
-            history: {
-              $each: [
-                {
-                  actor: actorId,
-                  type: 'TASK_ASSIGNED',
-                  taskTitle: task.title,
-                  changes: [{ field: 'assigneeId', from: targetId, to: null }],
-                  createdAt: new Date(),
-                },
-              ],
-              $slice: -200,
-            },
-          },
-        },
-      ),
-    ),
+  await AssignmentCleanup.updateOne(
+    { team: teamId, user: targetId },
+    { $setOnInsert: { actor: actorId } },
+    { upsert: true },
   );
 }
+
+export const updateTeam = teamMutation(updateTeamInternal);
+
+export const changeRole = teamMutation(changeRoleInternal);
+
+export async function removeMember(
+  team: string,
+  actor: string,
+  target: string,
+) {
+  await mutation(team, () => removeMemberInternal(team, actor, target));
+  const job = await AssignmentCleanup.findOne({ team, user: target });
+  if (job) await runCleanup(job.id);
+}
+
+export const createTeam = (userId: string, input: unknown) =>
+  mutation(null, () => createTeamInternal(userId, input));

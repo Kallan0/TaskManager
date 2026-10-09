@@ -1,5 +1,5 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { app } from '../src/app.js';
@@ -13,7 +13,7 @@ const owner = request.agent(app),
   knight = request.agent(app),
   member = request.agent(app),
   outsider = request.agent(app);
-let mongo: MongoMemoryServer,
+let mongo: MongoMemoryReplSet,
   teamId: string,
   otherTeam: string,
   knightId: string,
@@ -21,7 +21,7 @@ let mongo: MongoMemoryServer,
   proposal: { id: string; version: number };
 const root = () => `/api/v1/teams/${teamId}/tasks`;
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
+  mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(mongo.getUri());
   await Promise.all([
     User.init(),
@@ -247,12 +247,15 @@ describe('Celestial mission approval', () => {
             await agent
               .patch(`${root()}/${proposal.id}${suffix}`)
               .set('Origin', origin)
-              .send(body)
+              .send({ ...body, version: proposal.version })
           ).status,
         ).toBe(403);
       expect(
-        (await agent.delete(`${root()}/${proposal.id}`).set('Origin', origin))
-          .status,
+        (
+          await agent
+            .delete(`${root()}/${proposal.id}?version=${proposal.version}`)
+            .set('Origin', origin)
+        ).status,
       ).toBe(403);
     }
     expect(

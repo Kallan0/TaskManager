@@ -18,7 +18,8 @@
     "test:responsive": "npm run build -w client && node scripts/check-responsive.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:load": "npm run build && node scripts/check-load.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

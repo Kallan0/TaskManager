@@ -1,5 +1,7 @@
 # Multi-user reliability review
 
+Implementation follow-up: [changes and remaining deployment checks](reliability-implementation.md). The findings below describe the pre-hardening code reviewed on 10 October 2026.
+
 Reviewed: 10 October 2026. Scope: current React/Express/Mongoose implementation, authentication, crew roles, invitation links, missions/proposals, comments, deployment configuration, and data-access paths.
 
 **Assessment:** suitable for continued development and staging evaluation. Public multi-user readiness and a supported user count are not established. The main release blockers are invitation identity and multi-document consistency. Several scaling problems depend on crew size rather than total registered users.

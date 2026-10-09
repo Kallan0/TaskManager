@@ -103,6 +103,8 @@ try {
   const pages = [
     ['login', 'login'],
     ['register', 'register'],
+    ['recover', 'recover'],
+    ['account', 'account'],
     ['dashboard', 'dashboard'],
     ['create-team', 'teams/new'],
     ['team-workspace', base],
@@ -118,6 +120,8 @@ try {
     ['invalid-invitation', 'invitations/invalid'],
   ];
   const variants = [
+    ['join-request-waiting', `invitations/${inviteToken}?invite=requested`],
+    ['join-request-approval', `${base}/members?invite=requested`],
     ['holy-knight-board', `${base}/board?role=admin`],
     ['holy-knight-propose', `${base}/tasks/new?role=admin`],
     ['commoner-board', `${base}/board?role=member`],

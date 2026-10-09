@@ -55,32 +55,32 @@ Shared loading skeletons announce pending data to assistive technology; mission,
 
 Responses use `{ success: true, data: ... }` or `{ success: false, error: { code, message, details? } }`.
 
-| Method | Path                    | Input / behavior                                              |
-| ------ | ----------------------- | ------------------------------------------------------------- |
-| GET    | `/health`               | 200 when MongoDB is connected; otherwise 503                  |
-| POST   | `/api/v1/auth/register` | `{ name, email, password }`; sets cookie, returns public user |
-| POST   | `/api/v1/auth/login`    | `{ email, password }`; sets cookie, returns public user       |
-| GET    | `/api/v1/auth/me`       | Requires cookie; returns `{ id, name, email }`                |
-| POST   | `/api/v1/auth/logout`   | Requires cookie; invalidates sessions and clears cookie; 204  |
+| Method | Path                    | Input / behavior                                                                     |
+| ------ | ----------------------- | ------------------------------------------------------------------------------------ |
+| GET    | `/health`               | 200 when bounded DB readiness succeeds; otherwise 503                                |
+| POST   | `/api/v1/auth/register` | `{ name, email, password }`; sets cookie; returns public user and recovery code once |
+| POST   | `/api/v1/auth/login`    | `{ email, password }`; sets cookie, returns public user                              |
+| GET    | `/api/v1/auth/me`       | Requires cookie; returns `{ id, name, email }`                                       |
+| POST   | `/api/v1/auth/logout`   | Requires cookie; invalidates sessions and clears cookie; 204                         |
 
 Passwords require 10 characters at registration and must not exceed 72 UTF-8 bytes. No password hashes or session tokens appear in JSON responses.
 
 Team API: `GET/POST /api/v1/teams`, `GET/PATCH /api/v1/teams/:teamId`, `GET /api/v1/teams/:teamId/members`, and `PATCH/DELETE /api/v1/teams/:teamId/members/:userId`. Managers can `GET/POST /api/v1/teams/:teamId/invitations` and revoke using `DELETE /api/v1/teams/:teamId/invitations/:invitationId`. List endpoints accept `page` and `limit` (maximum 100).
 
-Recipient API: `GET /api/v1/invitations` lists your pending invitations. `GET /api/v1/invitations/:token` checks a link; `POST /api/v1/invitations/:token/accept` or `/decline` handles it. Inbox actions use `POST /api/v1/invitations/by-id/:invitationId/accept` or `/decline`; these verify the authenticated email independently of knowing the ID.
+Recipient API: `GET /api/v1/invitations` lists only requests already claimed by your account and their approval updates. `GET /api/v1/invitations/:token` checks a link; `POST /api/v1/invitations/:token/accept` or `/decline` handles it. ID actions require a previously claimed invitation belonging to your account. The Celestial approves using `POST /api/v1/teams/:teamId/invitations/:invitationId/approve` with `{ applicantId }`.
 
 ## Try team collaboration locally
 
 1. Sign in and choose **Create team**. Give it a name and open its workspace.
 2. Invite another email as Commoners or Holy Knights. Copy the generated link or use the WhatsApp/email-app shortcuts. The link expires 48 hours after creation.
-3. Open an incognito window and register/sign in with that exact email. Accept from the link or the dashboard invitation inbox.
+3. Open an incognito window and register/sign in with that exact email. Open the shared link and choose **Request to join**. In the Celestial account, independently confirm the person and choose **Confirm crew member** in Members & settings.
 4. Both accounts can see the team and member list. The owner can change roles; managers can update settings, revoke invitations, and remove permitted members.
 
 SMTP is not required. The server creates a random 256-bit token for each invitation, stores only its SHA-256 hash and expiry in MongoDB, and returns `<CLIENT_URL>/invitations/<token>` to the authorized manager immediately after creation, including in production. Copy and save the link at creation time: it cannot be reconstructed later from the stored hash. Share it through any medium; the email shortcut opens your email app and the WhatsApp shortcut opens a sharing page. Neither sends a message automatically. The recipient must sign in with the invited email. Expired, revoked or previously used links cannot grant new membership; revoke a pending invitation and create a fresh one if needed.
 
 Each newly created invitation expires 48 hours after creation, enforced on the server when accepted. Existing invitations retain their stored expiry. Set `CLIENT_URL` to your publicly reachable frontend origin for other devices to open links; `localhost` links only work on the machine serving the app. SMTP settings are no longer used, and the MongoDB URI in your existing `.env` is preserved.
 
-Local MongoDB runs standalone, so multi-document writes use unique indexes, atomic invitation claims, and compensating writes instead of transactions. Accepted links cannot re-add a removed member. If the process crashes between claiming an invitation and adding its membership, the owner must issue a fresh invitation; transaction-based recovery with a replica set is a later hardening item.
+The managed local MongoDB now runs as a replica set. Transactions atomically approve invitations and grant memberships; accepted links cannot re-add a removed member. Removal revokes access and persists a resumable assignment-cleanup job. See the reliability report for migration and restart instructions.
 
 ## Validation
 
@@ -100,6 +100,12 @@ npm.cmd run format:check
 
 API tests start an isolated MongoDB using `mongodb-memory-server`; the first run downloads a MongoDB binary into `.cache/mongodb` and requires network access. Tests never use your configured development database. Tests cover authentication, team isolation, roles, invitation hashing/identity/expiry/revocation/concurrent acceptance, and frontend creation/invitation/member flows.
 
+## Reliability implementation
+
+The [16-risk implementation report](docs/reliability-implementation.md) maps every fix to the review, explains migration and retention commands, and records the remaining hosting checks. Crew writes now require a MongoDB replica set. Run the controlled migration before upgrading an existing database so historical activity and member search are backfilled. The configured `.env` is preserved.
+
+Invitation links still expire in 48 hours and need no SMTP. A link holder requests membership; only the Celestial can confirm the specific person and grant access. Registering a typed email cannot discover invitations or join automatically. New accounts receive a private recovery code; existing users can generate one in Account after confirming their password.
+
 ## Production configuration
 
 Deployment preparation and scaling review:
@@ -109,11 +115,13 @@ Deployment preparation and scaling review:
 
 `TRUST_PROXY_HOPS` defaults to `0`, so incoming forwarded IP headers are ignored. Set it only to the known fixed number of trusted reverse proxies in front of the API (1–5). Every route to the API must use that same proxy chain, and the outer proxy must replace client-provided forwarding headers. Do not enable it when clients can reach the API directly or through a shorter chain. Verify this against the actual host before deployment.
 
-Build both workspaces with `npm run build`; start the API with `npm run start -w server`. Serve `client/dist` with SPA fallback to `index.html`, and proxy `/api` to the API. Configure `NODE_ENV=production`, an HTTPS `CLIENT_URL` (origin only, no trailing slash), a private `SESSION_SECRET`, and your MongoDB URI. Use frontend and API under the same origin or same site; arbitrary cross-site cookie deployments are not supported by the current SameSite strategy. Set trusted proxy configuration explicitly when hosting behind a reverse proxy; the current local server does not assume one. The rate limiter uses process memory and will need a shared store for multiple API instances.
+Build both workspaces with `npm run build`; start the API with `npm run start -w server`. Serve `client/dist` with SPA fallback to `index.html`, and proxy `/api` to the API. Configure `NODE_ENV=production`, an HTTPS `CLIENT_URL` (origin only, no trailing slash), a private `SESSION_SECRET`, and your MongoDB URI. Use frontend and API under the same origin or same site; arbitrary cross-site cookie deployments are not supported by the current SameSite strategy. Set trusted proxy configuration explicitly when hosting behind a reverse proxy; the current local server does not assume one. Production rate limiters use shared MongoDB counters; pools and proxy trust still need validation against the selected hosting topology.
 
 No deployment or external account provisioning has been performed.
 
-## Phase 6 hardening
+## Phase 6 hardening (original milestone)
+
+Limits, pagination, activity storage and runtime safeguards were subsequently updated in the [reliability implementation](docs/reliability-implementation.md).
 
 - General API traffic is limited to 600 requests per IP per 15 minutes, in addition to the existing 20 authentication attempts per 15 minutes and 30 invitations per authenticated manager per hour. Rejections return structured `RATE_LIMITED` errors, standard rate-limit headers, and `Retry-After`. `/health` is excluded from the general API budget. Limits use process memory and need a shared store before scaling to multiple API processes.
 - Each request gets a server-generated `X-Request-ID`. JSON completion logs contain only request ID, HTTP method, status and duration. URLs, invitation tokens, query strings, email addresses, IP addresses, cookies, passwords and request bodies are excluded.
@@ -126,15 +134,15 @@ Automated checks do not replace browser verification on the eventual production 
 
 Phase 6 automated validation and API hardening are implemented; manual browser checks on mobile/desktop and verification behind the actual hosting proxy remain before deployment. Comment policy: current crew members may post/read comments; authors may edit/delete their own comments; the Celestial and Holy Knights may delete others' comments. Managers cannot edit another author's text. Ownership transfer and team deletion are not implemented yet.
 
-Later: hosting. Password reset, account email verification, and profile editing are not implemented yet.
+Later: hosting, verified identity-provider integration if desired, and profile editing. Password recovery uses a saved private recovery code; invitations use link possession plus Celestial confirmation.
 
 ## Task planning
 
 Open a team from the dashboard to see its mission list. The Celestial chooses **Create mission**, adds details, selects a current team member, and sets dates; Holy Knights choose **Propose mission**. Switch to **Kanban board** to view progress; the Celestial can drag missions or use their status selectors. Choose **Open mission & comments** from either view to read details and join the discussion. Use **Members & settings** to manage the team.
 
-Only the **Celestial** can create, edit, assign, change status, and delete missions. **Holy Knights** can propose missions for Celestial approval. **Commoners** can view approved missions and comment, including on missions assigned to them; they cannot create, edit, delete, reassign, move cards or change status. Task IDs are always scoped to the team. Removing a member clears their task assignments without deleting missions they created. Changing status to `done` records completion time; reopening clears it.
+Only the **Celestial** can create, edit, assign, change status, and delete missions. **Holy Knights** can propose missions for Celestial approval. **Commoners** can view approved missions and comment, including on missions assigned to them; they cannot create, edit, delete, reassign, move cards or change status. Task IDs are always scoped to the team. Removing a member immediately revokes access and schedules durable assignment cleanup without deleting missions they created. Bounded batches run immediately and resume in the background after interruption. Changing status to `done` records completion time; reopening clears it.
 
-Tasks and their latest 200 activity events are stored together so each task change and its history are atomic on local standalone MongoDB. Deletion is a soft delete: the task leaves planning views while its history remains in team activity. This is recent history, not an unlimited audit log. Member removal and assignment reconciliation still involve multiple documents; a replica set and transactions are a later hardening item.
+Missions and their latest 200 embedded events are stored together; mutations also append to the indexed activity stream in the same replica-set transaction. Deletion is a soft delete: the task leaves planning views while its history remains in team activity. An indexed activity stream is saved transactionally with each mutation and retained for 365 days. Embedded histories remain capped at 200 events for compatibility. Member removal uses a durable cleanup job and bounded transactions.
 
 | Method               | Path (under `/api/v1`)                  | Behavior                           |
 | -------------------- | --------------------------------------- | ---------------------------------- |
@@ -148,7 +156,7 @@ Tasks and their latest 200 activity events are stored together so each task chan
 
 Task fields: `title` (required, max 200), `description` (max 10000), `status` (`todo`, `in_progress`, `in_review`, `done`), `priority` (`low`, `medium`, `high`, `urgent`), nullable `assigneeId`, `startDate`, and `dueDate`. Dates are real calendar dates in `YYYY-MM-DD` form, with due date on or after start date. Update/status/assignee requests accept the returned integer `version`; deletion accepts `?version=...`. The UI always supplies it. Stale writes return 409 so the user can reload the current task.
 
-Task lists accept `page`, `limit`, `q` (literal case-insensitive title/description search), `status`, `priority`, `assignee` (user ID or `unassigned`), `due` (`overdue`, `upcoming`, `undated`), `dueAfter`, `dueBefore`, and `sort` (`newest`, `oldest`, `due`, `priority`). The browser supplies its local calendar `today`; API clients may also supply it (default UTC today). Overdue excludes completed tasks; upcoming covers today through seven days ahead and excludes completed tasks. Range bounds are inclusive. Due-date sorting puts undated tasks first.
+Task lists accept `page`, `limit`, `q` (indexed word/phrase title/description search), `status`, `priority`, `assignee` (user ID or `unassigned`), `due` (`overdue`, `upcoming`, `undated`), `dueAfter`, `dueBefore`, and `sort` (`newest`, `oldest`, `due`, `priority`). The browser supplies its local calendar `today`; API clients may also supply it (default UTC today). Overdue excludes completed tasks; upcoming covers today through seven days ahead and excludes completed tasks. Range bounds are inclusive. Due-date sorting puts undated tasks first.
 
 Task validation includes isolated database tests for CRUD, membership boundaries, assignment, dates, filters, completion, competing writes, deletion history, and removal cleanup, plus React tests for forms, editing, filtering, list/board moves, and confirmed deletion.
 
@@ -162,7 +170,7 @@ The Celestial opens **Review proposal** and chooses **Approve mission** or **Rej
 
 ## Mission discussions
 
-Open a mission and use **Mission discussion** to share progress or ask a question. Comments appear oldest first, 20 per page, with author, posting time, and an **Edited** marker when updated. Posting opens the last page so the saved comment is visible. Use **Refresh** to fetch other crew members' latest comments; live updates and threaded replies are future work. Failed posts retain the draft for retry.
+Open a mission and use **Mission discussion** to share progress or ask a question. Comments appear oldest first, 20 per page, with author, posting time, and an **Edited** marker when updated. Posting opens the last page so the saved comment is visible. Visible discussion queries refresh every 30 seconds; **Refresh** remains available. Realtime delivery and threaded replies are future work. Failed posts retain the draft for retry.
 
 | Method         | Path (under `/api/v1`)                                         | Behavior                                                             |
 | -------------- | -------------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -173,6 +181,6 @@ Open a mission and use **Mission discussion** to share progress or ask a questio
 
 Comment text is trimmed, required, limited to 4000 characters, and rendered as plain text. HTML and scripts remain literal text. Every operation checks current team membership and an active mission; nested comment IDs must belong to that mission and team. Removed members lose access, and deleted missions cannot accept or expose discussion comments through these endpoints. The UI sends the comment's returned `version` with writes; stale edits/deletes return 409 and offer a reload.
 
-Comments live in a separate indexed `TaskComment` collection for pagination. Each comment and its latest 200 activity events are saved atomically in that document, independently of the mission version. Mission/team activity combines mission and comment events without including comment bodies. Comment deletion clears its text and retains a deletion event; deleting a mission hides its discussion while preserving team activity. Cross-document mission-deletion races are checked and reconciled after comment creation. This does not provide full multi-document transaction isolation on standalone MongoDB.
+Comments live in a separate indexed `TaskComment` collection for pagination. Each comment and its latest 200 activity events are saved atomically in that document, independently of the mission version. Mission/team activity combines mission and comment events without including comment bodies. Comment deletion clears its text and retains a deletion event; deleting a mission hides its discussion while preserving team activity. Cross-document mission-deletion races are checked and reconciled after comment creation. Crew mutations now use replica-set transactions and a shared team write guard; standalone MongoDB is no longer supported.
 
 Discussion tests use isolated MongoDB instances, not the database configured in `server/.env`. They cover membership/mission boundaries, author editing, manager moderation, revoked access, competing edits, pagination, deleted missions, and activity. Frontend tests cover loading/empty states, posting, editing, paging, confirmation, conflict reload, safe text rendering, and retry drafts.

@@ -1,6 +1,13 @@
+import { Activity } from '../activity/activity.model.js';
+import {
+  encodeCursor,
+  decodeCursor,
+  encodeOrderedCursor,
+  decodeOrderedCursor,
+} from '../../utils/cursor.js';
+import { teamMutation, captureEvent } from '../../utils/mutation.js';
 import { Types, type HydratedDocument, type InferSchemaType } from 'mongoose';
 import { Task, approvedMissionFilter } from './task.model.js';
-import { TaskComment } from '../comments/comment.model.js';
 import {
   createTaskSchema,
   updateTaskSchema,
@@ -15,18 +22,6 @@ import { ApiError } from '../../utils/ApiError.js';
 
 type TaskDoc = HydratedDocument<InferSchemaType<typeof Task.schema>>;
 type Change = { field: string; from?: string | null; to?: string | null };
-type ActivityRow = {
-  _id: Types.ObjectId;
-  deletedAt: Date | null;
-  history: {
-    _id: Types.ObjectId;
-    actor: Types.ObjectId;
-    taskTitle: string;
-    type: string;
-    changes: Change[];
-    createdAt: Date;
-  };
-};
 const day = (value?: Date | null) =>
   value ? value.toISOString().slice(0, 10) : null;
 const date = (value?: string | null) =>
@@ -37,8 +32,10 @@ function event(
   title: string,
   changes: Change[] = [],
 ) {
+  const id = new Types.ObjectId();
+  captureEvent(id);
   return {
-    _id: new Types.ObjectId(),
+    _id: id,
     actor,
     type,
     taskTitle: title,
@@ -116,7 +113,7 @@ async function serialize(tasks: TaskDoc[], userId: string, role: string) {
     canReview: role === 'owner' && task.approvalStatus === 'pending',
   }));
 }
-export async function createTask(
+async function createTaskInternal(
   teamId: string,
   userId: string,
   input: unknown,
@@ -143,6 +140,7 @@ export async function createTask(
     ...values,
     team: teamId,
     createdBy: userId,
+    priorityRank: ['urgent', 'high', 'medium', 'low'].indexOf(values.priority),
     approvalStatus: proposal ? 'pending' : 'approved',
     assignee: values.assigneeId,
     startDate: date(values.startDate),
@@ -211,13 +209,8 @@ export async function listTasks(
   if (values.priority) filter.priority = values.priority;
   if (values.assignee)
     filter.assignee = values.assignee === 'unassigned' ? null : values.assignee;
-  if (values.q) {
-    const pattern = values.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    filter.$or = [
-      { title: { $regex: pattern, $options: 'i' } },
-      { description: { $regex: pattern, $options: 'i' } },
-    ];
-  }
+  if (values.q)
+    filter.$text = { $search: '"' + values.q.replace(/["\\]/g, ' ') + '"' };
   const today = date(values.today ?? new Date().toISOString().slice(0, 10))!;
   if (values.due === 'overdue') {
     filter.dueDate = { $lt: today, $ne: null };
@@ -250,57 +243,76 @@ export async function listTasks(
     ];
   }
   const total = await Task.countDocuments(filter);
-  const sort: Record<string, 1 | -1> =
-    values.sort === 'oldest'
-      ? { createdAt: 1, _id: 1 }
-      : values.sort === 'due'
-        ? { dueDate: 1, _id: 1 }
-        : { createdAt: -1, _id: -1 };
-  let tasks;
-  if (values.sort === 'priority') {
-    const ids = await Task.aggregate([
-      {
-        $match: {
-          ...filter,
-          team: new Types.ObjectId(teamId),
-          ...(typeof filter.assignee === 'string'
-            ? { assignee: new Types.ObjectId(filter.assignee) }
-            : {}),
+  const field =
+    values.sort === 'due'
+      ? 'dueDate'
+      : values.sort === 'priority'
+        ? 'priorityRank'
+        : 'createdAt';
+  const direction = values.sort === 'newest' ? -1 : 1;
+  const idDirection =
+    values.sort === 'priority' || values.sort === 'newest' ? -1 : 1;
+  const sort: Record<string, 1 | -1> = { [field]: direction, _id: idDirection };
+  const { page: _page, limit: _limit, cursor: _cursor, ...scoped } = values;
+  const scope = teamId + ':' + JSON.stringify(scoped);
+  if (values.cursor) {
+    const after = decodeOrderedCursor(values.cursor, scope);
+    const value =
+      field === 'priorityRank'
+        ? after.value
+        : after.value === null
+          ? null
+          : new Date(String(after.value));
+    if (
+      (field === 'priorityRank' &&
+        (typeof value !== 'number' || value < 0 || value > 3)) ||
+      (field === 'createdAt' && value === null) ||
+      (value instanceof Date && !Number.isFinite(value.getTime()))
+    )
+      throw new ApiError(400, 'INVALID_CURSOR', 'Invalid page cursor');
+    const comparison =
+      field === 'dueDate' && value === null
+        ? { dueDate: { $ne: null } }
+        : { [field]: { [direction === 1 ? '$gt' : '$lt']: value } };
+    const cursorFilter = {
+      $or: [
+        comparison,
+        {
+          [field]: value,
+          _id: { [idDirection === 1 ? '$gt' : '$lt']: after.id },
         },
-      },
-      {
-        $addFields: {
-          priorityRank: {
-            $indexOfArray: [['urgent', 'high', 'medium', 'low'], '$priority'],
-          },
-        },
-      },
-      { $sort: { priorityRank: 1, createdAt: -1, _id: -1 } },
-      { $skip: (values.page - 1) * values.limit },
-      { $limit: values.limit },
-      { $project: { _id: 1 } },
-    ]);
-    const found = await Task.find({
-      team: teamId,
-      deletedAt: null,
-      _id: { $in: ids.map((item) => item._id) },
-    }).select('-history');
-    tasks = ids
-      .map((item) => found.find((task) => task._id.equals(item._id))!)
-      .filter(Boolean);
-  } else
-    tasks = await Task.find(filter)
-      .select('-history')
-      .sort(sort)
-      .skip((values.page - 1) * values.limit)
-      .limit(values.limit);
+      ],
+    };
+    filter.$and = [
+      ...(Array.isArray(filter.$and) ? filter.$and : []),
+      cursorFilter,
+    ];
+  }
+  const tasks = await Task.find(filter)
+    .select('-history')
+    .sort(sort)
+    .skip(values.cursor ? 0 : (values.page - 1) * values.limit)
+    .limit(values.limit + 1);
+  const hasMore = tasks.length > values.limit;
+  tasks.length = Math.min(tasks.length, values.limit);
+  const last = tasks.at(-1);
+  const cursorValue = last
+    ? field === 'priorityRank'
+      ? last.priorityRank
+      : field === 'dueDate'
+        ? (last.dueDate?.toISOString() ?? null)
+        : last.createdAt.toISOString()
+    : null;
   return {
     items: await serialize(tasks, userId, membership.role),
     page: values.page,
     total,
     pages: Math.max(1, Math.ceil(total / values.limit)),
+    nextCursor:
+      hasMore && last ? encodeOrderedCursor(last.id, cursorValue, scope) : null,
   };
 }
+
 export async function taskSummary(teamId: string, userId: string) {
   await authorizeTeam(teamId, userId);
   const rows = await Task.aggregate<{ _id: string; count: number }>([
@@ -322,7 +334,7 @@ export async function taskSummary(teamId: string, userId: string) {
   for (const row of rows) counts[row._id] = row.count;
   return { ...counts, total: rows.reduce((sum, row) => sum + row.count, 0) };
 }
-export async function updateTask(
+async function updateTaskInternal(
   teamId: string,
   userId: string,
   taskId: string,
@@ -388,6 +400,10 @@ export async function updateTask(
     return (await serialize([current], userId, membership.role))[0];
   if (values.status && values.status !== current.status)
     set.completedAt = values.status === 'done' ? new Date() : null;
+  if (values.priority)
+    set.priorityRank = ['urgent', 'high', 'medium', 'low'].indexOf(
+      values.priority,
+    );
   const title = values.title ?? current.title;
   const events = [
     event(
@@ -461,7 +477,7 @@ export async function updateTask(
   }
   return (await serialize([updated], userId, membership.role))[0];
 }
-export async function deleteTask(
+async function deleteTaskInternal(
   teamId: string,
   userId: string,
   taskId: string,
@@ -501,7 +517,7 @@ export async function deleteTask(
       'This mission changed. Reload it before deleting',
     );
 }
-export async function reviewProposal(
+async function reviewProposalInternal(
   teamId: string,
   userId: string,
   taskId: string,
@@ -574,79 +590,67 @@ export async function listActivity(
 ) {
   const membership = await authorizeTeam(teamId, userId);
   if (taskId) await findTask(teamId, taskId, membership.role !== 'member');
-  const { page, limit } = paginationSchema.parse(query);
-  const match = {
-    team: new Types.ObjectId(teamId),
-    ...(membership.role === 'member' ? approvedMissionFilter : {}),
-    ...(taskId ? { _id: new Types.ObjectId(taskId) } : {}),
+  const { page, limit, cursor } = paginationSchema.parse(query);
+  const scope = teamId + ':' + (taskId ?? 'all') + ':' + membership.role;
+  const filter: Record<string, unknown> = {
+    team: teamId,
+    ...(taskId ? { task: taskId } : {}),
+    ...(membership.role === 'member' ? { visibleToMembers: true } : {}),
   };
-  const result = await Task.aggregate<{
-    items: ActivityRow[];
-    total: { count: number }[];
-  }>([
-    { $match: match },
-    {
-      $unionWith: {
-        coll: TaskComment.collection.name,
-        pipeline: [
-          {
-            $match: {
-              team: new Types.ObjectId(teamId),
-              ...(taskId ? { task: new Types.ObjectId(taskId) } : {}),
-            },
-          },
-          {
-            $lookup: {
-              from: Task.collection.name,
-              localField: 'task',
-              foreignField: '_id',
-              as: 'mission',
-            },
-          },
-          { $unwind: '$mission' },
-          {
-            $project: {
-              _id: '$task',
-              history: 1,
-              deletedAt: '$mission.deletedAt',
-            },
-          },
-        ],
-      },
-    },
-    { $unwind: '$history' },
-    { $sort: { 'history.createdAt': -1, 'history._id': -1 } },
-    {
-      $facet: {
-        total: [{ $count: 'count' }],
-        items: [
-          { $skip: (page - 1) * limit },
-          { $limit: limit },
-          { $project: { _id: 1, history: 1, deletedAt: 1 } },
-        ],
-      },
-    },
-  ]);
-  const rows = result[0]?.items ?? [];
+  const includeTotal = (query as { count?: unknown })?.count !== 'false';
+  const exactTotal = includeTotal ? await Activity.countDocuments(filter) : 0;
+  if (cursor) {
+    const after = decodeCursor(cursor, scope);
+    filter.$or = [
+      { createdAt: { $lt: after.date } },
+      { createdAt: after.date, _id: { $lt: after.id } },
+    ];
+  }
+  const rows = await Activity.find(filter)
+    .sort({ createdAt: -1, _id: -1 })
+    .skip(cursor ? 0 : (page - 1) * limit)
+    .limit(limit + 1);
+  const hasMore = rows.length > limit;
+  rows.length = Math.min(rows.length, limit);
   const users = await User.find({
-    _id: { $in: rows.map((row) => row.history.actor) },
-  });
-  const items = rows.map((row) => {
-    const actor = users.find((user) => user._id.equals(row.history.actor));
-    return {
-      id: row.history._id.toString(),
-      taskId: row._id.toString(),
-      taskTitle: row.history.taskTitle,
-      taskDeleted: !!row.deletedAt,
-      actor: {
-        id: row.history.actor.toString(),
-        name: actor?.name ?? 'Former user',
-      },
-      type: row.history.type,
-      changes: row.history.changes,
-      createdAt: row.history.createdAt,
-    };
-  });
-  const total = result[0]?.total[0]?.count ?? 0;
-  return { items, page, total, pages: Math.max(1, Math.ceil(total / limit)) };
+    _id: { $in: rows.map((r) => r.actor) },
+  }).select('name');
+  const tasks = await Task.find({
+    _id: { $in: rows.map((r) => r.task) },
+  }).select('deletedAt');
+  const items = rows.map((row) => ({
+    id: row.id,
+    taskId: row.task.toString(),
+    taskTitle: row.taskTitle,
+    taskDeleted: !tasks.some((t) => t._id.equals(row.task) && !t.deletedAt),
+    actor: {
+      id: row.actor.toString(),
+      name: users.find((u) => u._id.equals(row.actor))?.name ?? 'Former user',
+    },
+    type: row.type,
+    changes: row.changes,
+    createdAt: row.createdAt,
+  }));
+  const last = rows.at(-1);
+  return {
+    items,
+    page,
+    total: includeTotal ? exactTotal : rows.length,
+    totalIsExact: includeTotal,
+    pages: includeTotal
+      ? Math.max(1, Math.ceil(exactTotal / limit))
+      : hasMore
+        ? page + 1
+        : page,
+    nextCursor:
+      hasMore && last ? encodeCursor(last.id, last.createdAt, scope) : null,
+  };
 }
+
+export const createTask = teamMutation(createTaskInternal);
+
+export const updateTask = teamMutation(updateTaskInternal);
+
+export const deleteTask = teamMutation(deleteTaskInternal);
+
+export const reviewProposal = teamMutation(reviewProposalInternal);

@@ -33,6 +33,7 @@ vi.mock('../api/teams.api', () => ({
     invite: vi.fn(),
     invitations: vi.fn(),
     revoke: vi.fn(),
+    approve: vi.fn(),
   },
   invitationsApi: { incoming: vi.fn(), get: vi.fn(), respond: vi.fn() },
 }));
@@ -103,6 +104,53 @@ function show(path = '/dashboard') {
   return cache;
 }
 describe('Team and invitation screens', () => {
+  it('requests link-based membership without navigating into the crew before approval', async () => {
+    vi.mocked(invitationsApi.get).mockResolvedValue(invited);
+    vi.mocked(invitationsApi.respond).mockImplementation(async () => {
+      vi.mocked(invitationsApi.get).mockResolvedValue({
+        ...invited,
+        status: 'requested',
+      });
+      return { teamId: team.id, status: 'requested' };
+    });
+    show(`/invitations/${'d'.repeat(64)}`);
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Request to join' }),
+    );
+    expect(
+      await screen.findByText(/Your request is awaiting Celestial approval/),
+    ).toBeInTheDocument();
+    expect(invitationsApi.respond).toHaveBeenCalledWith(
+      'd'.repeat(64),
+      'accept',
+      false,
+    );
+  });
+  it('requires identity confirmation before approving the specific crew applicant', async () => {
+    const applicant = { id: 'f'.repeat(24), name: 'Sam', email: invited.email };
+    vi.mocked(teamsApi.invitations).mockResolvedValue(
+      page([{ ...invited, status: 'requested', applicant }]),
+    );
+    vi.mocked(teamsApi.approve).mockResolvedValue({});
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    show(`/teams/${team.id}`);
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Confirm crew member' }),
+    );
+    expect(teamsApi.approve).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Confirm crew member' }),
+    );
+    await waitFor(() =>
+      expect(teamsApi.approve).toHaveBeenCalledWith(
+        team.id,
+        invited.id,
+        applicant.id,
+      ),
+    );
+    confirm.mockRestore();
+  });
   it('creates a crew inline on the dashboard using a suggested name', async () => {
     vi.mocked(teamsApi.create).mockResolvedValue(team);
     show();

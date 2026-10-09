@@ -26,7 +26,8 @@ export const roleSchema = z
   .object({ role: z.enum(['admin', 'member']) })
   .strict();
 export const paginationSchema = z.object({
-  page: z.coerce.number().int().min(1).max(10000).default(1),
+  cursor: z.string().max(5000).optional(),
+  page: z.coerce.number().int().min(1).max(250).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 export const tokenSchema = z

@@ -1,5 +1,5 @@
 ﻿import { beforeAll, afterAll, describe, it, expect } from 'vitest';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { app } from '../src/app.js';
@@ -11,7 +11,7 @@ const origin = 'http://localhost:5173';
 const owner = request.agent(app),
   member = request.agent(app),
   outsider = request.agent(app);
-let mongo: MongoMemoryServer,
+let mongo: MongoMemoryReplSet,
   teamId: string,
   otherTeam: string,
   memberId: string,
@@ -19,7 +19,7 @@ let mongo: MongoMemoryServer,
   version: number;
 const path = () => `/api/v1/teams/${teamId}/tasks`;
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
+  mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(mongo.getUri());
   await Promise.all([User.init(), Team.init(), Membership.init(), Task.init()]);
   for (const [agent, name] of [
@@ -118,7 +118,7 @@ describe('Persisted team tasks', () => {
         await owner
           .patch(`/api/v1/teams/${otherTeam}/tasks/${taskId}/status`)
           .set('Origin', origin)
-          .send({ status: 'done' })
+          .send({ status: 'done', version })
       ).status,
     ).toBe(404);
     expect((await outsider.get(`${path()}/${taskId}/activity`)).status).toBe(
@@ -137,10 +137,10 @@ describe('Persisted team tasks', () => {
     for (const suffix of ['', '/status', '/assignee']) {
       const body =
         suffix === '/status'
-          ? { status: 'done' }
+          ? { status: 'done', version }
           : suffix === '/assignee'
-            ? { assigneeId: memberId }
-            : { title: 'Unauthorized edit' };
+            ? { assigneeId: memberId, version }
+            : { title: 'Unauthorized edit', version };
       expect(
         (
           await member
@@ -240,7 +240,11 @@ describe('Persisted team tasks', () => {
   });
   it('restricts deletion to the Celestial, including legacy member-created missions, and retains activity', async () => {
     expect(
-      (await member.delete(`${path()}/${taskId}`).set('Origin', origin)).status,
+      (
+        await member
+          .delete(`${path()}/${taskId}?version=${version}`)
+          .set('Origin', origin)
+      ).status,
     ).toBe(403);
     expect(
       (
@@ -269,10 +273,18 @@ describe('Persisted team tasks', () => {
     ).body.data;
     await Task.updateOne({ _id: own.id }, { $set: { createdBy: memberId } });
     expect(
-      (await member.delete(`${path()}/${own.id}`).set('Origin', origin)).status,
+      (
+        await member
+          .delete(`${path()}/${own.id}?version=${own.version}`)
+          .set('Origin', origin)
+      ).status,
     ).toBe(403);
     expect(
-      (await owner.delete(`${path()}/${own.id}`).set('Origin', origin)).status,
+      (
+        await owner
+          .delete(`${path()}/${own.id}?version=${own.version}`)
+          .set('Origin', origin)
+      ).status,
     ).toBe(204);
   });
   it('clears assignment and records an event when a member is removed', async () => {

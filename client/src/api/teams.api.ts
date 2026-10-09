@@ -22,7 +22,9 @@ export type Invitation = {
   teamName?: string;
   email: string;
   role: 'admin' | 'member';
-  status: 'pending' | 'accepted' | 'declined' | 'revoked' | 'expired';
+  applicant?: { id: string; name: string; email: string } | null;
+  status:
+    'requested' | 'pending' | 'accepted' | 'declined' | 'revoked' | 'expired';
   expiresAt: string;
   createdAt: string;
   inviteUrl?: string;
@@ -32,6 +34,8 @@ export type Page<T> = {
   page: number;
   total: number;
   pages: number;
+  lastCursor?: string | null;
+  nextCursor?: string | null;
 };
 const json = (method: string, values?: unknown) => ({
   method,
@@ -44,8 +48,10 @@ export const teamsApi = {
   get: (id: string) => request<Team>(`/teams/${id}`),
   update: (id: string, values: { name: string; description: string }) =>
     request<Team>(`/teams/${id}`, json('PATCH', values)),
-  members: (id: string, page = 1) =>
-    request<Page<Member>>(`/teams/${id}/members?page=${page}`),
+  members: (id: string, page = 1, q = '', limit = 20) =>
+    request<Page<Member>>(
+      `/teams/${id}/members?page=${page}&limit=${limit}&q=${encodeURIComponent(q)}`,
+    ),
   changeRole: (id: string, userId: string, role: 'admin' | 'member') =>
     request(`/teams/${id}/members/${userId}`, json('PATCH', { role })),
   remove: (id: string, userId: string) =>
@@ -54,6 +60,11 @@ export const teamsApi = {
     request<Invitation>(`/teams/${id}/invitations`, json('POST', values)),
   invitations: (id: string, page = 1) =>
     request<Page<Invitation>>(`/teams/${id}/invitations?page=${page}`),
+  approve: (id: string, invitationId: string, applicantId: string) =>
+    request(
+      '/teams/' + id + '/invitations/' + invitationId + '/approve',
+      json('POST', { applicantId }),
+    ),
   revoke: (id: string, invitationId: string) =>
     request<void>(`/teams/${id}/invitations/${invitationId}`, json('DELETE')),
 };

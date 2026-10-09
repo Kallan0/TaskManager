@@ -28,6 +28,8 @@ export function TaskEditor() {
     queryKey: ['task', teamId, taskId],
     queryFn: () => tasksApi.get(teamId, taskId!),
     enabled: !!taskId && !!team.data,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   });
   const requestedStatus = params.get('status');
   const proposal = !taskId && team.data?.role === 'admin';
@@ -79,6 +81,7 @@ export function TaskEditor() {
       {allowed && team.data && members.data && (!taskId || task.data) && (
         <section className="content-panel form-panel">
           <TaskForm
+            teamId={teamId}
             key={`${taskId ?? 'new'}-${task.data?.version ?? 0}`}
             initial={task.data}
             proposal={proposal}

@@ -1,5 +1,5 @@
+import { paged } from './pagination';
 import { request } from './client';
-import type { Page } from './teams.api';
 export type MissionComment = {
   id: string;
   teamId: string;
@@ -17,7 +17,7 @@ const path = (team: string, mission: string) =>
   `/teams/${team}/tasks/${mission}/comments`;
 export const commentsApi = {
   list: (team: string, mission: string, page = 1) =>
-    request<Page<MissionComment>>(`${path(team, mission)}?page=${page}`),
+    paged<MissionComment>(path(team, mission), page),
   create: (team: string, mission: string, body: string) =>
     request<MissionComment>(path(team, mission), {
       method: 'POST',

@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { tasksApi } from '../../api/tasks.api';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -35,6 +37,7 @@ const schema = z
   );
 type Values = z.infer<typeof schema>;
 export function TaskForm({
+  teamId,
   initial,
   initialStatus = 'todo',
   members,
@@ -42,6 +45,7 @@ export function TaskForm({
   onReload,
   proposal = false,
 }: {
+  teamId?: string;
   initial?: Task;
   initialStatus?: Status;
   members: Member[];
@@ -49,6 +53,21 @@ export function TaskForm({
   onReload?: () => Promise<unknown>;
   proposal?: boolean;
 }) {
+  const [chosen, setChosen] = useState<{ id: string; name: string } | null>(
+    initial?.assignee ?? null,
+  );
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+  const results = useQuery({
+    queryKey: ['member-search', teamId, query],
+    queryFn: () => tasksApi.members(teamId!, query),
+    enabled: !!teamId && query.length >= 2,
+  });
+  const choices = query.length >= 2 && results.data ? results.data : members;
   const [error, setError] = useState<unknown>(null);
   const {
     register,
@@ -146,9 +165,36 @@ export function TaskForm({
         </div>
         <div className="field wide">
           <label htmlFor="task-assignee">Assignee</label>
-          <select id="task-assignee" {...register('assigneeId')}>
+          {teamId && (
+            <>
+              <label htmlFor="assignee-search">Find crew member</label>
+              <input
+                id="assignee-search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name or email (2+ characters)"
+              />
+              <small>
+                Showing up to 100 matches. Search to find another crew member.
+              </small>
+              <ErrorMessage error={results.error} />
+              {results.isFetching && (
+                <small role="status">Finding members?</small>
+              )}
+            </>
+          )}
+          <select
+            id="task-assignee"
+            {...register('assigneeId', {
+              onChange: (e) =>
+                setChosen(choices.find((m) => m.id === e.target.value) ?? null),
+            })}
+          >
             <option value="">Unassigned</option>
-            {members.map((member) => (
+            {chosen && !choices.some((m) => m.id === chosen.id) && (
+              <option value={chosen.id}>{chosen.name}</option>
+            )}
+            {choices.map((member) => (
               <option key={member.id} value={member.id}>
                 {member.name}
               </option>

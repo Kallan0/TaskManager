@@ -21,6 +21,7 @@ const schema = new Schema(
       enum: ['low', 'medium', 'high', 'urgent'],
       default: 'medium',
     },
+    priorityRank: { type: Number, default: 2 },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     assignee: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     startDate: { type: Date, default: null },
@@ -44,6 +45,17 @@ schema.index({ team: 1, assignee: 1, deletedAt: 1 });
 schema.index({ team: 1, dueDate: 1, deletedAt: 1 });
 schema.index({ team: 1, 'history.createdAt': -1 });
 schema.index({ team: 1, approvalStatus: 1, deletedAt: 1, createdAt: -1 });
+schema.index({
+  team: 1,
+  deletedAt: 1,
+  approvalStatus: 1,
+  priorityRank: 1,
+  _id: -1,
+});
+schema.index({ title: 'text', description: 'text' });
+schema.index({ 'history._id': 1 });
+schema.index({ team: 1, deletedAt: 1, createdAt: -1, _id: -1 });
+schema.index({ team: 1, deletedAt: 1, dueDate: 1, _id: 1 });
 export const Task = model('Task', schema);
 // Legacy missions without an approval field remain approved.
 export const approvedMissionFilter = {

@@ -5,7 +5,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { ArrowRight, Compass } from 'lucide-react';
-import { ApiError, authApi } from '../../api/client';
+import { clearPageCursors } from '../../api/pagination';
+import { clearPendingRequests } from '../../api/client';
+import { RecoveryCode } from './RecoveryCode';
+import { ApiError, authApi, type User } from '../../api/client';
 import { useSession } from '../../hooks/useSession';
 import { PasswordInput } from './PasswordInput';
 
@@ -70,6 +73,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   const suffix =
     next === '/dashboard' ? '' : `?next=${encodeURIComponent(next)}`;
   const cache = useQueryClient();
+  const [createdUser, setCreatedUser] = useState<User | null>(null);
   const [error, setError] = useState('');
   const {
     register: field,
@@ -80,7 +84,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
     resolver: zodResolver(schema),
     defaultValues: { name: '', email: '', password: '' },
   });
-  if (session.data) return <Navigate to={next} replace />;
+  if (session.data && !createdUser) return <Navigate to={next} replace />;
   const submit = handleSubmit(async (values) => {
     setError('');
     if (register && values.name.trim().length < 2) {
@@ -104,12 +108,17 @@ export function AuthPage({ register = false }: { register?: boolean }) {
             email: values.email,
             password: values.password,
           });
+      clearPageCursors();
+      clearPendingRequests();
       await cache.cancelQueries({ queryKey: ['session'] });
       cache.removeQueries({
         predicate: (query) => query.queryKey[0] !== 'session',
       });
-      cache.setQueryData(['session'], user);
-      navigate(next, { replace: true });
+      if (register && user.recoveryCode) setCreatedUser(user);
+      else {
+        cache.setQueryData(['session'], user);
+        navigate(next, { replace: true });
+      }
     } catch (caught) {
       if (caught instanceof ApiError) {
         caught.error.details?.forEach((detail) => {
@@ -126,6 +135,24 @@ export function AuthPage({ register = false }: { register?: boolean }) {
       );
     }
   });
+  if (createdUser?.recoveryCode)
+    return (
+      <main className="invitation-page">
+        <section className="invitation-panel">
+          <RecoveryCode code={createdUser.recoveryCode} />
+          <button
+            className="primary"
+            onClick={() => {
+              const { recoveryCode: _code, ...safe } = createdUser;
+              cache.setQueryData(['session'], safe);
+              navigate(next, { replace: true });
+            }}
+          >
+            I saved my code ? continue
+          </button>
+        </section>
+      </main>
+    );
   return (
     <main className="auth-layout">
       <AuthBackground />
@@ -141,6 +168,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
               ? 'Your next great project starts here.'
               : 'Sign in to your workspace and pick up the course.'}
           </p>
+          {!register && <Link to="/recover">Forgot your password?</Link>}
           <form onSubmit={submit} noValidate>
             {register && (
               <div className="field">

@@ -11,7 +11,8 @@ import {
   LogOut,
   Plus,
 } from 'lucide-react';
-import { authApi, ApiError } from '../../api/client';
+import { clearPageCursors } from '../../api/pagination';
+import { authApi, ApiError, clearPendingRequests } from '../../api/client';
 import { useSession } from '../../hooks/useSession';
 import { ErrorMessage } from '../common/Feedback';
 import { teamsApi } from '../../api/teams.api';
@@ -46,6 +47,8 @@ export function WorkspaceLayout({
         return;
       }
     }
+    clearPendingRequests();
+    clearPageCursors();
     await cache.cancelQueries();
     cache.removeQueries({
       predicate: (query) => query.queryKey[0] !== 'session',
@@ -126,6 +129,7 @@ export function WorkspaceLayout({
             <span className="breadcrumb">/ {title}</span>
           </span>
           <div className="topbar-identity">
+            <Link to="/account">Account</Link>
             {team.data && (
               <span className={`role-badge ${team.data.role}`}>
                 {roleLabels[team.data.role]}

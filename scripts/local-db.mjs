@@ -15,6 +15,7 @@ const command = process.argv[2];
 async function connect() {
   const connection = mongoose.createConnection(uri, {
     serverSelectionTimeoutMS: 1000,
+    directConnection: true,
   });
   try {
     await connection.asPromise();
@@ -55,6 +56,14 @@ async function main() {
           .command({ getCmdLineOpts: 1 });
         const path = options.parsed?.storage?.dbPath;
         const managed = path && resolve(path) === dataPath;
+        if (
+          command === 'start' &&
+          managed &&
+          !options.parsed?.replication?.replSetName
+        )
+          throw new Error(
+            'The managed DB is running standalone. Run db:stop then db:start to enable transactions; data is preserved.',
+          );
         console.log(
           `MongoDB is running at ${uri}\nPersistent data: ${path ?? 'configured by existing installation'}\n${managed ? 'Managed by this project.' : 'Using existing installation; db:stop will not stop it.'}`,
         );
@@ -89,6 +98,8 @@ async function main() {
   const child = spawn(
     binary,
     [
+      '--replSet',
+      'planner-rs',
       '--dbpath',
       dataPath,
       '--bind_ip',
@@ -113,6 +124,22 @@ async function main() {
     if (connection) {
       try {
         await verifyManaged(connection);
+        const hello = await connection.db.admin().command({ hello: 1 });
+        if (!hello.setName) {
+          await connection.db.admin().command({
+            replSetInitiate: {
+              _id: 'planner-rs',
+              members: [{ _id: 0, host: '127.0.0.1:27017' }],
+            },
+          });
+        }
+        for (let wait = 0; wait < 40; wait++) {
+          const state = await connection.db.admin().command({ hello: 1 });
+          if (state.isWritablePrimary) break;
+          if (wait === 39)
+            throw new Error('Local replica set did not elect a primary');
+          await delay(250);
+        }
       } finally {
         await connection.close();
       }

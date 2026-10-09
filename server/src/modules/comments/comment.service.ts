@@ -1,3 +1,5 @@
+import { encodeCursor, decodeCursor } from '../../utils/cursor.js';
+import { mutation, captureEvent } from '../../utils/mutation.js';
 import { Types, type HydratedDocument, type InferSchemaType } from 'mongoose';
 import { z } from 'zod';
 import { TaskComment } from './comment.model.js';
@@ -13,10 +15,10 @@ const bodySchema = z
   .max(4000, 'Use at most 4000 characters');
 const createSchema = z.object({ body: bodySchema }).strict();
 const updateSchema = createSchema.extend({
-  version: z.number().int().nonnegative().optional(),
+  version: z.number().int().nonnegative(),
 });
 export const deleteCommentSchema = z
-  .object({ version: z.coerce.number().int().nonnegative().optional() })
+  .object({ version: z.coerce.number().int().nonnegative() })
   .strict();
 type CommentDoc = HydratedDocument<InferSchemaType<typeof TaskComment.schema>>;
 type Scope = { teamId: string; taskId: string };
@@ -61,8 +63,10 @@ async function serialize(comments: CommentDoc[], userId: string, role: string) {
   }));
 }
 function event(actor: string, type: string, taskTitle: string) {
+  const id = new Types.ObjectId();
+  captureEvent(id);
   return {
-    _id: new Types.ObjectId(),
+    _id: id,
     actor,
     type,
     taskTitle,
@@ -77,22 +81,51 @@ export async function listComments(
   query: unknown,
 ) {
   const { role } = await authorizeMission(teamId, taskId, userId);
-  const { page, limit } = paginationSchema.parse(query);
-  const filter = { team: teamId, task: taskId, deletedAt: null };
+  const { page, limit, cursor } = paginationSchema.parse(query);
+  const filter: Record<string, unknown> = {
+    team: teamId,
+    task: taskId,
+    deletedAt: null,
+  };
   const total = await TaskComment.countDocuments(filter);
+  const scope = teamId + ':' + taskId;
+  const remainder = total % limit || limit;
+  const lastBoundary =
+    total > limit
+      ? await TaskComment.findOne(filter)
+          .select('createdAt')
+          .sort({ createdAt: -1, _id: -1 })
+          .skip(remainder)
+      : null;
+  const lastCursor = lastBoundary
+    ? encodeCursor(lastBoundary.id, lastBoundary.createdAt, scope)
+    : null;
+  if (cursor) {
+    const after = decodeCursor(cursor, scope);
+    filter.$or = [
+      { createdAt: { $gt: after.date } },
+      { createdAt: after.date, _id: { $gt: after.id } },
+    ];
+  }
   const comments = await TaskComment.find(filter)
     .select('-history')
     .sort({ createdAt: 1, _id: 1 })
-    .skip((page - 1) * limit)
-    .limit(limit);
+    .skip(cursor ? 0 : (page - 1) * limit)
+    .limit(limit + 1);
+  const hasMore = comments.length > limit;
+  comments.length = Math.min(comments.length, limit);
+  const last = comments.at(-1);
   return {
     items: await serialize(comments, userId, role),
+    lastCursor,
+    nextCursor:
+      hasMore && last ? encodeCursor(last.id, last.createdAt, scope) : null,
     page,
     total,
     pages: Math.max(1, Math.ceil(total / limit)),
   };
 }
-export async function createComment(
+async function createCommentInternal(
   teamId: string,
   taskId: string,
   userId: string,
@@ -144,7 +177,7 @@ const conflict = () =>
     'COMMENT_CONFLICT',
     'This comment changed. Reload it before trying again',
   );
-export async function updateComment(
+async function updateCommentInternal(
   commentId: string,
   userId: string,
   input: unknown,
@@ -178,7 +211,7 @@ export async function updateComment(
   if (!updated) throw conflict();
   return (await serialize([updated], userId, role))[0];
 }
-export async function deleteComment(
+async function deleteCommentInternal(
   commentId: string,
   userId: string,
   version?: number,
@@ -211,3 +244,28 @@ export async function deleteComment(
   );
   if (!result.modifiedCount) throw conflict();
 }
+
+export const createComment = (
+  team: string,
+  task: string,
+  user: string,
+  input: unknown,
+) => mutation(team, () => createCommentInternal(team, task, user, input));
+async function commentMutation<T>(id: string, work: () => Promise<T>) {
+  idSchema.parse(id);
+  const comment = await TaskComment.findById(id).select('team');
+  if (!comment) throw new ApiError(404, 'NOT_FOUND', 'Comment not found');
+  return mutation(comment.team.toString(), work);
+}
+export const updateComment = (
+  id: string,
+  user: string,
+  input: unknown,
+  scope?: Scope,
+) => commentMutation(id, () => updateCommentInternal(id, user, input, scope));
+export const deleteComment = (
+  id: string,
+  user: string,
+  version?: number,
+  scope?: Scope,
+) => commentMutation(id, () => deleteCommentInternal(id, user, version, scope));

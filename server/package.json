@@ -7,7 +7,10 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:migrate": "node dist/admin/database.js migrate",
+    "db:audit": "node dist/admin/database.js audit",
+    "db:retention": "node dist/admin/database.js retention"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

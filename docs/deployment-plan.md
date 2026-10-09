@@ -1,12 +1,14 @@
 # Deployment plan
 
-Reviewed: 10 October 2026. This is a proposed rollout for the current repository; hosting, infrastructure, load tests, and the prerequisites below have not been implemented by this review.
+Implementation update: the code prerequisites have been addressed in [the reliability implementation](reliability-implementation.md). Use its migration/bootstrap instructions with the staging and rollout gates below.
+
+Reviewed: 10 October 2026. This is a proposed rollout for the current repository; hosting and infrastructure remain proposed; local hardening and a disposable load smoke check are documented in the implementation report.
 
 ## Recommended first deployment
 
 Use one always-on Node web service on Render and a MongoDB Atlas replica set, with the browser and API under **one HTTPS origin**. Keep a separate staging service and staging database. Select the service size and Atlas tier after the staging load test; no user capacity or monthly cost is established yet.
 
-The proposed Node service serves the compiled React files and the Express API. **The server currently serves API routes only**, so production static hosting and SPA fallback must be implemented before this topology will work. Render supports Node/Express services with configurable build/start commands: [official deployment guide](https://render.com/docs/deploy-node-express-app).
+The Node service now serves compiled React files and the Express API in production, with SPA fallback. Build the frontend and run the controlled database migration before starting it. Render supports Node/Express services with configurable build/start commands: [official deployment guide](https://render.com/docs/deploy-node-express-app).
 
 ```text
 Browser -> HTTPS hosting proxy -> Node service
@@ -22,17 +24,17 @@ SMTP is unnecessary for invitations. Keep generating a 48-hour link and let the 
 
 ## Phase 1: release prerequisites
 
-Complete these in small, reviewable changes before public access:
+The code safeguards are implemented; verify them on the real staging topology before public access:
 
-1. Add production static serving after API/health routes and before the final 404 handler. SPA fallback must handle UI deep links, including `/invitations/:token`, but must never turn unknown API paths or missing assets into HTML successes. Use Express 5-compatible route syntax. Verify Helmet's CSP with the actual styles/fonts; avoid broad CSP relaxation. Cache fingerprinted assets, revalidate HTML, and do not cache authenticated API responses.
-2. Close the invitation identity vulnerability: prevent unverified accounts from discovering or accepting invitations addressed to an email they have merely typed. Preserve link sharing and the no-SMTP requirement. Choose a verified identity provider, or an explicit Celestial approval workflow with no automatic membership grant; do not silently treat a typed address as verified ownership.
-3. Make team creation and invitation acceptance atomic across their documents using replica-set transactions. Add bounded, retryable cleanup for member removal and an invariant repair job/report. Test process interruption, transaction retries, and repeated acceptance. Transactions alone do not enforce revocation order without a shared write/version guard.
-4. Revise rate-limit budgets for office/shared-network users. Add per-user budgets for authenticated traffic, retaining IP protection for anonymous endpoints. Before two API instances, install a shared store for all three limiters and define store-outage behavior.
-5. Require versions on mission/comment update and delete endpoints; keep the existing 409 reload flow. Introduce idempotency keys for mission/proposal/comment creation and reconcile ambiguous network failures before retrying.
-6. Add bounded database waits, request cancellation/timeouts, useful readiness checks, safe operation-tagged metrics, and alerts. Validate maximum UTF-8 request sizes against field limits.
-7. Define account recovery and Celestial continuity, backup retention, data retention, and incident responsibility. An administrator-controlled recovery process is an option for a closed pilot; changing ownership permissions needs a separate explicit product decision.
+1. Verify SPA deep links, asset/API 404s, CSP/fonts, immutable asset caching and API no-store responses.
+2. Verify link possession, Celestial applicant confirmation, wrong accounts, expiry and revocation. Review existing memberships through trusted contacts.
+3. Run the controlled migration on a replica set, audit invariants and test process interruption/failover with transactions and durable cleanup.
+4. Exercise shared counters across two instances and shared-network users; tune budgets and test store outages.
+5. Verify mandatory mission/comment versions, retained creation keys after lost responses and conflict reload flows.
+6. Collect bounded request/DB/worker metrics, wire alerts and test Unicode limits and failure states.
+7. Check recovery-code handling and Celestial account recovery; enable backups, run a restore drill and assign incident responsibility.
 
-The detailed triggers and acceptance checks are in the [review](multi-user-review.md). Do not declare these complete merely because staging boots.
+Use the [implementation report](reliability-implementation.md) for exact behavior and commands. A healthy staging startup alone does not satisfy these gates.
 
 ## Phase 2: staging configuration
 

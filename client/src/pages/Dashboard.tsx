@@ -70,7 +70,7 @@ export function Dashboard() {
           </div>
           <div>
             <strong>{invitations.data?.total ?? '—'}</strong>
-            <span>PENDING INVITES</span>
+            <span>INVITATION UPDATES</span>
           </div>
         </div>
       </section>
@@ -133,8 +133,8 @@ export function Dashboard() {
       <div className="dashboard-lower">
         <section className="content-panel invitation-inbox">
           <div className="section-heading">
-            <h2>Invitations for you</h2>
-            <span>{invitations.data?.total ?? 0} pending</span>
+            <h2>Your invitation requests</h2>
+            <span>{invitations.data?.total ?? 0} updates</span>
           </div>
           <ErrorMessage error={invitations.error} />
           <ErrorMessage error={response.error} />
@@ -161,28 +161,41 @@ export function Dashboard() {
                     {new Date(invite.expiresAt).toLocaleString()}
                   </p>
                 </div>
-                <div className="action-row">
-                  <button
-                    className="secondary"
-                    disabled={response.isPending}
-                    onClick={() =>
-                      response.mutate({ id: invite.id, action: 'decline' })
-                    }
-                  >
-                    Decline
-                  </button>
-                  <button
+                {invite.status === 'accepted' ? (
+                  <Link
                     className="primary"
-                    disabled={response.isPending}
-                    onClick={() =>
-                      response.mutate({ id: invite.id, action: 'accept' })
-                    }
+                    to={`/teams/${invite.teamId}/tasks`}
                   >
-                    {response.isPending && response.variables?.id === invite.id
-                      ? 'Working…'
-                      : 'Accept invitation'}
-                  </button>
-                </div>
+                    Open crew
+                  </Link>
+                ) : (
+                  <p role="status">Awaiting Celestial approval</p>
+                )}
+                {invite.status === 'pending' && (
+                  <div className="action-row">
+                    <button
+                      className="secondary"
+                      disabled={response.isPending}
+                      onClick={() =>
+                        response.mutate({ id: invite.id, action: 'decline' })
+                      }
+                    >
+                      Decline
+                    </button>
+                    <button
+                      className="primary"
+                      disabled={response.isPending}
+                      onClick={() =>
+                        response.mutate({ id: invite.id, action: 'accept' })
+                      }
+                    >
+                      {response.isPending &&
+                      response.variables?.id === invite.id
+                        ? 'Working…'
+                        : 'Accept invitation'}
+                    </button>
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -194,8 +207,9 @@ export function Dashboard() {
             />
           )}
           <p className="inbox-note">
-            Accept to join the crew. Each new invitation expires 48 hours after
-            creation.
+            Open the shared invitation link to request access. The Celestial
+            confirms your identity before you join. Each new invitation expires
+            48 hours after creation.
           </p>
         </section>
         <section className="content-panel dashboard-create">

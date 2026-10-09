@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { rateLimit } from 'express-rate-limit';
+import { sharedLimit } from '../../middleware/sharedLimit.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import * as teams from './team.service.js';
 import * as invitations from '../invitations/invitation.service.js';
@@ -71,7 +71,7 @@ teamRouter.delete('/:teamId/members/:userId', async (req, res) => {
   );
   res.status(204).end();
 });
-const inviteLimit = rateLimit({
+const inviteLimit = sharedLimit('invitations', {
   windowMs: 60 * 60 * 1000,
   limit: 30,
   standardHeaders: 'draft-8',
@@ -104,6 +104,19 @@ teamRouter.get('/:teamId/invitations', async (req, res) =>
       req.query,
     ),
   }),
+);
+teamRouter.post(
+  '/:teamId/invitations/:invitationId/approve',
+  async (req, res) =>
+    res.json({
+      success: true,
+      data: await invitations.approveInvitation(
+        req.params.teamId,
+        res.locals.user.id,
+        req.params.invitationId,
+        req.body,
+      ),
+    }),
 );
 teamRouter.delete('/:teamId/invitations/:invitationId', async (req, res) => {
   await invitations.revokeInvitation(

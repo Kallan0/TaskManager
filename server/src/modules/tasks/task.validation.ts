@@ -43,7 +43,7 @@ export const createTaskSchema = z
 export const updateTaskSchema = z
   .object(fields)
   .partial()
-  .extend({ version: z.number().int().nonnegative().optional() })
+  .extend({ version: z.number().int().nonnegative() })
   .strict()
   .refine(
     (value) => Object.keys(value).some((key) => key !== 'version'),
@@ -56,13 +56,13 @@ export const updateTaskSchema = z
 export const statusSchema = z
   .object({
     status: fields.status,
-    version: z.number().int().nonnegative().optional(),
+    version: z.number().int().nonnegative(),
   })
   .strict();
 export const assigneeSchema = z
   .object({
     assigneeId: fields.assigneeId,
-    version: z.number().int().nonnegative().optional(),
+    version: z.number().int().nonnegative(),
   })
   .strict();
 export const listTaskSchema = paginationSchema
@@ -88,7 +88,7 @@ export const listTaskSchema = paginationSchema
     },
   );
 export const deleteTaskSchema = z
-  .object({ version: z.coerce.number().int().nonnegative().optional() })
+  .object({ version: z.coerce.number().int().nonnegative() })
   .strict();
 export const reviewProposalSchema = z
   .object({

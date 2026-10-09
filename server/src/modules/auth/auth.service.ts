@@ -1,11 +1,12 @@
-import bcrypt from 'bcryptjs';
+import { hashPassword, comparePassword } from './passwords.js';
+import { newRecoveryCode, recoveryHash } from './recovery.service.js';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { User, publicUser } from './user.model.js';
 import { registerSchema, loginSchema } from './auth.validation.js';
 
-const dummyHash = await bcrypt.hash('unusable-dummy-password', 12);
+const dummyHash = await hashPassword('unusable-dummy-password');
 function session(user: {
   _id: { toString(): string };
   name: string;
@@ -25,17 +26,24 @@ function session(user: {
 }
 export async function register(input: unknown) {
   const data = registerSchema.parse(input);
-  const passwordHash = await bcrypt.hash(data.password, 12);
-  return session(
-    await User.create({ name: data.name, email: data.email, passwordHash }),
+  const passwordHash = await hashPassword(data.password);
+  const recoveryCode = newRecoveryCode();
+  const result = session(
+    await User.create({
+      name: data.name,
+      email: data.email,
+      passwordHash,
+      recoveryHash: recoveryHash(recoveryCode),
+    }),
   );
+  return { ...result, recoveryCode };
 }
 export async function login(input: unknown) {
   const data = loginSchema.parse(input);
   const user = await User.findOne({ email: data.email }).select(
     '+passwordHash +tokenVersion',
   );
-  const valid = await bcrypt.compare(
+  const valid = await comparePassword(
     data.password,
     user?.passwordHash ?? dummyHash,
   );

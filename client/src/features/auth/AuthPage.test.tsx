@@ -28,6 +28,40 @@ function show(register = false) {
   return cache;
 }
 describe('Authentication forms', () => {
+  it('shows the registration recovery code once and excludes it from the session cache', async () => {
+    const user = {
+      id: 'abc',
+      name: 'Alex',
+      email: 'alex@example.com',
+      recoveryCode: 'a'.repeat(64),
+    };
+    vi.mocked(authApi.register).mockResolvedValue(user);
+    const cache = show(true);
+    await userEvent.type(screen.getByLabelText('Full name'), 'Alex');
+    await userEvent.type(
+      screen.getByLabelText('Email address'),
+      'alex@example.com',
+    );
+    await userEvent.type(
+      screen.getByLabelText('Password'),
+      'correct-password-123',
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Create account' }),
+    );
+    expect(await screen.findByLabelText('Recovery code')).toHaveValue(
+      user.recoveryCode,
+    );
+    expect(cache.getQueryData(['session'])).toBeNull();
+    await userEvent.click(
+      screen.getByRole('button', { name: /I saved my code/ }),
+    );
+    expect(cache.getQueryData(['session'])).toEqual({
+      id: 'abc',
+      name: 'Alex',
+      email: 'alex@example.com',
+    });
+  });
   it('shows validation without calling the API', async () => {
     show();
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));

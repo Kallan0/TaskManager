@@ -1,6 +1,11 @@
+import { teamMutation, mutation } from '../../utils/mutation.js';
 import { createHash, randomBytes } from 'node:crypto';
+import { AssignmentCleanup } from '../teams/cleanup.model.js';
 import { Invitation } from './invitation.model.js';
-import { Membership } from '../memberships/membership.model.js';
+import {
+  Membership,
+  memberSearchKeys,
+} from '../memberships/membership.model.js';
 import { Team } from '../teams/team.model.js';
 import { User, type PublicUser } from '../auth/user.model.js';
 import {
@@ -33,14 +38,15 @@ function serializeInvitation(invite: {
     email: invite.invitedEmail,
     role: invite.role,
     status:
-      invite.status === 'pending' && invite.expiresAt <= new Date()
+      ['pending', 'requested'].includes(invite.status) &&
+      invite.expiresAt <= new Date()
         ? 'expired'
         : invite.status,
     expiresAt: invite.expiresAt,
     createdAt: invite.createdAt,
   };
 }
-export async function createInvitation(
+async function createInvitationInternal(
   teamId: string,
   actorId: string,
   input: unknown,
@@ -99,8 +105,23 @@ export async function listTeamInvitations(
     .sort({ createdAt: -1, _id: -1 })
     .skip((page - 1) * limit)
     .limit(limit);
+  const applicants = await User.find({
+    _id: {
+      $in: invites.flatMap((i) => (i.requestedBy ? [i.requestedBy] : [])),
+    },
+  }).select('name email');
   return {
-    items: invites.map(serializeInvitation),
+    items: invites.map((invite) => {
+      const applicant = applicants.find(
+        (p) => invite.requestedBy && p._id.equals(invite.requestedBy),
+      );
+      return {
+        ...serializeInvitation(invite),
+        applicant: applicant
+          ? { id: applicant.id, name: applicant.name, email: applicant.email }
+          : null,
+      };
+    }),
     page,
     total,
     pages: Math.max(1, Math.ceil(total / limit)),
@@ -112,8 +133,8 @@ export async function listIncomingInvitations(
 ) {
   const { page, limit } = paginationSchema.parse(query);
   const filter = {
-    invitedEmail: user.email,
-    status: 'pending',
+    requestedBy: user.id,
+    status: { $in: ['requested', 'accepted'] },
     expiresAt: { $gt: new Date() },
   };
   const total = await Invitation.countDocuments(filter);
@@ -143,7 +164,7 @@ export async function findInvitation(
   const lookup =
     'token' in selector
       ? { tokenHash: hash(tokenSchema.parse(selector.token)) }
-      : { _id: idSchema.parse(selector.id) };
+      : { _id: idSchema.parse(selector.id), requestedBy: user.id };
   const invite = await Invitation.findOne({
     ...lookup,
     invitedEmail: user.email,
@@ -162,7 +183,7 @@ export async function getInvitation(token: string, user: PublicUser) {
   const { invite, team } = await findInvitation({ token }, user);
   return { ...serializeInvitation(invite), teamName: team.name };
 }
-export async function respondToInvitation(
+async function respondToInvitationInternal(
   selector: { token: string } | { id: string },
   user: PublicUser,
   action: 'accept' | 'decline',
@@ -177,17 +198,31 @@ export async function respondToInvitation(
       'This invitation has already been used. Ask the Celestial for a new invitation',
     );
   }
-  if (invite.status !== 'pending' || invite.expiresAt <= new Date())
+  if (
+    !['pending', 'requested'].includes(invite.status) ||
+    invite.expiresAt <= new Date()
+  )
     throw new ApiError(
       409,
       'INVITATION_UNAVAILABLE',
       'This invitation is expired or no longer pending',
     );
-  const nextStatus = action === 'accept' ? 'accepted' : 'declined';
+  if (
+    action === 'accept' &&
+    invite.status === 'requested' &&
+    invite.requestedBy?.toString() === user.id
+  )
+    return { teamId: team.id, status: 'requested' };
+  const nextStatus = action === 'accept' ? 'requested' : 'declined';
   // Claim the invitation before granting membership: acceptance and revocation cannot both win.
   const claimed = await Invitation.findOneAndUpdate(
-    { _id: invite._id, status: 'pending', expiresAt: { $gt: new Date() } },
-    { $set: { status: nextStatus } },
+    {
+      _id: invite._id,
+      status:
+        action === 'decline' ? { $in: ['pending', 'requested'] } : 'pending',
+      expiresAt: { $gt: new Date() },
+    },
+    { $set: { status: nextStatus, requestedBy: user.id } },
     { new: true },
   );
   if (!claimed)
@@ -196,27 +231,9 @@ export async function respondToInvitation(
       'INVITATION_UNAVAILABLE',
       'This invitation has already been handled',
     );
-  if (action === 'accept') {
-    try {
-      await Membership.updateOne(
-        { team: team._id, user: user.id },
-        { $setOnInsert: { role: invite.role, joinedAt: new Date() } },
-        { upsert: true },
-      );
-    } catch (error) {
-      // A concurrent upsert may lose the unique-index race but still have created the one required membership.
-      if (!(await Membership.exists({ team: team._id, user: user.id }))) {
-        await Invitation.updateOne(
-          { _id: invite._id, status: 'accepted' },
-          { $set: { status: 'pending' } },
-        );
-        throw error;
-      }
-    }
-  }
   return { teamId: team._id.toString(), status: nextStatus };
 }
-export async function revokeInvitation(
+async function revokeInvitationInternal(
   teamId: string,
   actorId: string,
   invitationId: string,
@@ -224,7 +241,11 @@ export async function revokeInvitation(
   requireManager((await authorizeTeam(teamId, actorId)).role);
   idSchema.parse(invitationId);
   const result = await Invitation.updateOne(
-    { _id: invitationId, team: teamId, status: 'pending' },
+    {
+      _id: invitationId,
+      team: teamId,
+      status: { $in: ['pending', 'requested'] },
+    },
     { $set: { status: 'revoked' } },
   );
   if (!result.modifiedCount)
@@ -234,3 +255,75 @@ export async function revokeInvitation(
       'Invitation does not exist or is no longer pending',
     );
 }
+
+export const createInvitation = teamMutation(createInvitationInternal);
+
+export const revokeInvitation = teamMutation(revokeInvitationInternal);
+
+export async function respondToInvitation(
+  selector: { token: string } | { id: string },
+  user: PublicUser,
+  action: 'accept' | 'decline',
+) {
+  const { team } = await findInvitation(selector, user);
+  return mutation(team.id, () =>
+    respondToInvitationInternal(selector, user, action),
+  );
+}
+export const approveInvitation = teamMutation(
+  async (teamId: string, actorId: string, id: string, input: unknown) => {
+    const access = await authorizeTeam(teamId, actorId);
+    if (access.role !== 'owner')
+      throw new ApiError(
+        403,
+        'FORBIDDEN',
+        'Only the Celestial can confirm a new crew member',
+      );
+    idSchema.parse(id);
+    const applicantId = idSchema.parse(
+      (input as { applicantId?: unknown })?.applicantId,
+    );
+    if (await AssignmentCleanup.exists({ team: teamId, user: applicantId }))
+      throw new ApiError(
+        409,
+        'CLEANUP_PENDING',
+        'Earlier assignments are still being cleared. Try again shortly',
+      );
+    const invite = await Invitation.findOneAndUpdate(
+      {
+        _id: id,
+        team: teamId,
+        status: 'requested',
+        requestedBy: applicantId,
+        expiresAt: { $gt: new Date() },
+      },
+      { $set: { status: 'accepted' } },
+      { new: true },
+    );
+    if (!invite)
+      throw new ApiError(
+        409,
+        'INVITATION_UNAVAILABLE',
+        'This request changed or expired. Refresh before approving',
+      );
+    const applicant = await User.findById(applicantId).select('name email');
+    if (!applicant)
+      throw new ApiError(
+        404,
+        'NOT_FOUND',
+        'Applicant account no longer exists',
+      );
+    await Membership.updateOne(
+      { team: teamId, user: applicantId },
+      {
+        $setOnInsert: {
+          role: invite.role,
+          joinedAt: new Date(),
+          searchKeys: memberSearchKeys(applicant.name, applicant.email),
+        },
+      },
+      { upsert: true },
+    );
+    return { teamId, status: 'accepted' };
+  },
+);

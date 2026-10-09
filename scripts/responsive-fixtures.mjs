@@ -102,7 +102,14 @@ export async function startPreview() {
           teamName: 'Horizon Survey',
           email: user.email,
           role: 'member',
-          status: 'pending',
+          status:
+            referrer.searchParams.get('invite') === 'requested'
+              ? 'requested'
+              : 'pending',
+          applicant:
+            referrer.searchParams.get('invite') === 'requested'
+              ? members[1]
+              : null,
           expiresAt: '2026-10-12T00:00:00Z',
           createdAt,
         };

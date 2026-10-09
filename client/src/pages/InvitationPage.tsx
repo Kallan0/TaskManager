@@ -15,6 +15,7 @@ export function InvitationPage() {
     queryKey: ['invitation', token, session.data?.id],
     queryFn: () => invitationsApi.get(token),
     enabled: !!session.data && valid,
+    refetchInterval: 15000,
   });
   const response = useMutation({
     mutationFn: (action: 'accept' | 'decline') =>
@@ -96,9 +97,14 @@ export function InvitationPage() {
                       disabled={response.isPending}
                       onClick={() => response.mutate('accept')}
                     >
-                      {response.isPending ? 'Working…' : 'Accept invitation'}
+                      {response.isPending ? 'Working…' : 'Request to join'}
                     </button>
                   </div>
+                ) : invitation.data.status === 'requested' ? (
+                  <p role="status" className="success-message">
+                    Your request is awaiting Celestial approval. You will get
+                    access after your identity is confirmed.
+                  </p>
                 ) : (
                   <p className="success-message" role="status">
                     This invitation is {invitation.data.status}.

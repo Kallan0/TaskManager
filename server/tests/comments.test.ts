@@ -1,5 +1,5 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { app } from '../src/app.js';
@@ -13,7 +13,7 @@ const owner = request.agent(app),
   author = request.agent(app),
   knight = request.agent(app),
   outsider = request.agent(app);
-let mongo: MongoMemoryServer,
+let mongo: MongoMemoryReplSet,
   teamId: string,
   taskId: string,
   otherTeam: string,
@@ -23,7 +23,7 @@ let mongo: MongoMemoryServer,
   version: number;
 const path = () => `/api/v1/teams/${teamId}/tasks/${taskId}/comments`;
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
+  mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(mongo.getUri());
   await Promise.all([
     User.init(),
@@ -243,14 +243,18 @@ describe('Mission discussions and moderation', () => {
     expect(
       (
         await author
-          .delete(`${path()}/${celestialComment.id}`)
+          .delete(
+            `${path()}/${celestialComment.id}?version=${celestialComment.version}`,
+          )
           .set('Origin', origin)
       ).status,
     ).toBe(403);
     expect(
       (
         await knight
-          .delete(`${path()}/${celestialComment.id}`)
+          .delete(
+            `${path()}/${celestialComment.id}?version=${celestialComment.version}`,
+          )
           .set('Origin', origin)
       ).status,
     ).toBe(204);
@@ -319,7 +323,9 @@ describe('Mission discussions and moderation', () => {
     expect(
       (
         await owner
-          .delete(`/api/v1/teams/${teamId}/tasks/${taskId}`)
+          .delete(
+            `/api/v1/teams/${teamId}/tasks/${taskId}?version=${(await Task.findById(taskId))!.__v}`,
+          )
           .set('Origin', origin)
       ).status,
     ).toBe(204);
@@ -333,8 +339,11 @@ describe('Mission discussions and moderation', () => {
       ).status,
     ).toBe(404);
     expect(
-      (await owner.delete(`/api/v1/comments/${own.id}`).set('Origin', origin))
-        .status,
+      (
+        await owner
+          .delete(`/api/v1/comments/${own.id}?version=${own.version}`)
+          .set('Origin', origin)
+      ).status,
     ).toBe(404);
     const activity = (await owner.get(`/api/v1/teams/${teamId}/activity`)).body
       .data.items;

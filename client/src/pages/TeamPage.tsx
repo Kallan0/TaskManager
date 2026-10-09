@@ -205,11 +205,20 @@ export function TeamPage() {
     mutationFn: (id: string) => teamsApi.remove(teamId, id),
     onSuccess: refresh,
   });
+  const approval = useMutation({
+    mutationFn: ({ id, applicantId }: { id: string; applicantId: string }) =>
+      teamsApi.approve(teamId, id, applicantId),
+    onSuccess: refresh,
+  });
   const revoke = useMutation({
     mutationFn: (id: string) => teamsApi.revoke(teamId, id),
     onSuccess: refresh,
   });
-  const busy = roleChange.isPending || removal.isPending || revoke.isPending;
+  const busy =
+    roleChange.isPending ||
+    removal.isPending ||
+    revoke.isPending ||
+    approval.isPending;
   return (
     <WorkspaceLayout title={team.data?.name ?? 'Team'}>
       <Link to="/dashboard" className="back-link">
@@ -328,7 +337,9 @@ export function TeamPage() {
                     <h2>Invitations</h2>
                     <span>Pending and past</span>
                   </div>
-                  <ErrorMessage error={invites.error || revoke.error} />
+                  <ErrorMessage
+                    error={invites.error || revoke.error || approval.error}
+                  />
                   {invites.isPending && (
                     <LoadingState label="Loading invitations…" cards={1} />
                   )}
@@ -350,7 +361,36 @@ export function TeamPage() {
                         <span className={`status-badge ${invite.status}`}>
                           {invite.status}
                         </span>
-                        {invite.status === 'pending' && (
+                        {invite.status === 'requested' &&
+                          invite.applicant &&
+                          team.data?.role === 'owner' && (
+                            <div>
+                              <p>
+                                {invite.applicant.name} (
+                                {invite.applicant.email}) requested access.
+                                Confirm this person through your trusted contact
+                                before approving.
+                              </p>
+                              <button
+                                className="primary"
+                                disabled={approval.isPending}
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      'Have you independently confirmed this account belongs to the intended person?',
+                                    )
+                                  )
+                                    approval.mutate({
+                                      id: invite.id,
+                                      applicantId: invite.applicant!.id,
+                                    });
+                                }}
+                              >
+                                Confirm crew member
+                              </button>
+                            </div>
+                          )}
+                        {['pending', 'requested'].includes(invite.status) && (
                           <button
                             className="danger-text"
                             disabled={busy}

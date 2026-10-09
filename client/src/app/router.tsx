@@ -1,3 +1,5 @@
+import { RecoveryPage } from '../pages/RecoveryPage';
+import { AccountPage } from '../pages/AccountPage';
 import { Navigate, Outlet, createBrowserRouter } from 'react-router-dom';
 import { AuthPage } from '../features/auth/AuthPage';
 import { Dashboard } from '../pages/Dashboard';
@@ -30,12 +32,14 @@ function ProtectedRoute() {
   return session.data ? <Outlet /> : <Navigate to="/login" replace />;
 }
 export const router = createBrowserRouter([
+  { path: '/recover', element: <RecoveryPage /> },
   { path: '/login', element: <AuthPage /> },
   { path: '/register', element: <AuthPage register /> },
   { path: '/invitations/:token', element: <InvitationPage /> },
   {
     element: <ProtectedRoute />,
     children: [
+      { path: '/account', element: <AccountPage /> },
       { path: '/dashboard', element: <Dashboard /> },
       { path: '/teams/new', element: <CreateTeam /> },
       { path: '/teams/:teamId', element: <TasksPage /> },

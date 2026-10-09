@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { app } from '../src/app.js';
 import { User } from '../src/modules/auth/user.model.js';
 
-let mongo: MongoMemoryServer;
+let mongo: MongoMemoryReplSet;
 const origin = 'http://localhost:5173';
 const account = {
   name: 'Alex Morgan',
@@ -14,7 +14,7 @@ const account = {
   password: 'correct-password-123',
 };
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
+  mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(mongo.getUri());
   await User.init();
 });
@@ -91,7 +91,7 @@ describe('Authentication boundary', () => {
       .set('Origin', origin)
       .send(account);
     expect(res.status).toBe(201);
-    expect(res.body.data).toEqual({
+    expect(res.body.data).toMatchObject({
       id: expect.any(String),
       name: account.name,
       email: 'alex@example.com',

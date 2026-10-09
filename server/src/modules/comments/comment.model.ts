@@ -19,4 +19,5 @@ const schema = new Schema(
   { timestamps: true },
 );
 schema.index({ team: 1, task: 1, deletedAt: 1, createdAt: 1, _id: 1 });
+schema.index({ 'history._id': 1 });
 export const TaskComment = model('TaskComment', schema);

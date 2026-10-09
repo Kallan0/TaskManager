@@ -53,6 +53,7 @@ describe('API hardening', () => {
         event: 'http_request',
         requestId: response.headers['x-request-id'],
         method: 'POST',
+        operation: 'invitations',
         status: 403,
         durationMs: expect.any(Number),
       });
@@ -74,7 +75,7 @@ describe('API hardening', () => {
     const oversized = await request(app)
       .post('/api/v1/auth/login')
       .set('Origin', 'http://localhost:5173')
-      .send({ password: 'x'.repeat(17000) });
+      .send({ password: 'x'.repeat(100000) });
     expect(oversized.status).toBe(413);
     expect(oversized.body.error.code).toBe('BODY_TOO_LARGE');
     expect(JSON.stringify(oversized.body)).not.toContain('stack');
@@ -91,12 +92,12 @@ describe('API hardening', () => {
   });
 
   it('bounds pagination and rejects arrays and query operator objects', () => {
-    expect(paginationSchema.parse({ page: '10000', limit: '100' })).toEqual({
-      page: 10000,
+    expect(paginationSchema.parse({ page: '250', limit: '100' })).toEqual({
+      page: 250,
       limit: 100,
     });
     for (const query of [
-      { page: '10001' },
+      { page: '251' },
       { page: '1e100' },
       { page: '-1' },
       { limit: '101' },

@@ -1,5 +1,6 @@
+import { paged } from './pagination';
 import { request } from './client';
-import { teamsApi, type Member, type Page } from './teams.api';
+import { teamsApi, type Member } from './teams.api';
 export const statuses = ['todo', 'in_progress', 'in_review', 'done'] as const;
 export const priorities = ['low', 'medium', 'high', 'urgent'] as const;
 export type Status = (typeof statuses)[number];
@@ -89,13 +90,12 @@ export const tasksApi = {
     ),
   list: (team: string, filters: Filters = {}, page = 1) => {
     const params = new URLSearchParams({
-      page: String(page),
       today: localToday(),
     });
     Object.entries(filters).forEach(([key, value]) => {
       if (value) params.set(key, value);
     });
-    return request<Page<Task>>(`/teams/${team}/tasks?${params}`);
+    return paged<Task>(`/teams/${team}/tasks?${params}`, page);
   },
   summary: (team: string) =>
     request<Record<Status, number> & { total: number }>(
@@ -121,18 +121,13 @@ export const tasksApi = {
       json('DELETE'),
     ),
   activity: (team: string, task?: string, page = 1, limit = 20) =>
-    request<Page<Activity>>(
+    paged<Activity>(
       task
-        ? `/teams/${team}/tasks/${task}/activity?page=${page}&limit=${limit}`
-        : `/teams/${team}/activity?page=${page}&limit=${limit}`,
+        ? `/teams/${team}/tasks/${task}/activity${limit === 1 ? '?count=false' : ''}`
+        : `/teams/${team}/activity${limit === 1 ? '?count=false' : ''}`,
+      page,
+      limit,
     ),
-  members: async (team: string): Promise<Member[]> => {
-    const first = await teamsApi.members(team);
-    const rest = await Promise.all(
-      Array.from({ length: first.pages - 1 }, (_, index) =>
-        teamsApi.members(team, index + 2),
-      ),
-    );
-    return [...first.items, ...rest.flatMap((page) => page.items)];
-  },
+  members: async (team: string, q = ''): Promise<Member[]> =>
+    (await teamsApi.members(team, 1, q, 100)).items,
 };
