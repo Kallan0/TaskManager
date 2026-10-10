@@ -22,3 +22,25 @@ jobs:
       - run: npm run format:check
       - run: npm test
       - run: npm run build
+      - run: npm run test:deployment
+  separate-builds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        folder: [client, server]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.folder }}/package-lock.json
+      - name: Install the standalone package, including build dependencies
+        working-directory: ${{ matrix.folder }}
+        run: npm ci --include=dev --include=optional --workspaces=false
+        env:
+          NODE_ENV: production
+      - name: Build the standalone package
+        working-directory: ${{ matrix.folder }}
+        run: npm run build --workspaces=false

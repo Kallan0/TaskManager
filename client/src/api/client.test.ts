@@ -6,6 +6,27 @@ afterEach(() => {
   clearPendingRequests();
 });
 describe('Bounded network requests and retry identity', () => {
+  it('rejects HTML returned by a broken deployment route and retains the retry key', async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      status: 200,
+      ok: true,
+      json: async () => {
+        throw new SyntaxError('HTML instead of JSON');
+      },
+    });
+    vi.stubGlobal('fetch', fetch);
+    const options = { method: 'POST', body: '{"name":"Crew"}' };
+    await expect(request('/teams', options)).rejects.toMatchObject({
+      status: 502,
+      error: { code: 'INVALID_API_RESPONSE' },
+    });
+    await expect(request('/teams', options)).rejects.toMatchObject({
+      error: { code: 'INVALID_API_RESPONSE' },
+    });
+    expect(fetch.mock.calls[0][1].headers['Idempotency-Key']).toBe(
+      fetch.mock.calls[1][1].headers['Idempotency-Key'],
+    );
+  });
   it('aborts a stalled request and exposes a recoverable timeout error', async () => {
     vi.useFakeTimers();
     vi.stubGlobal(

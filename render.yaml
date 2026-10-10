@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: mission-planner-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm ci --include=dev --include=optional --workspaces=false && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: '24'
+      - key: MONGODB_URI
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DB_POOL_SIZE
+        value: '20'
+      - key: TRUST_PROXY_HOPS
+        value: '0'

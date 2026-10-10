@@ -64,7 +64,11 @@ const missions = [
 
 export async function startPreview() {
   const root = path.resolve('client/dist');
+  const deployment = JSON.parse(await readFile('client/vercel.json', 'utf8'));
+  const securityHeaders = deployment.routes[0].headers;
   const server = http.createServer(async (req, res) => {
+    for (const [name, value] of Object.entries(securityHeaders))
+      res.setHeader(name, value);
     try {
       const url = new URL(req.url, 'http://localhost');
       const route = url.pathname;

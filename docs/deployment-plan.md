@@ -1,5 +1,7 @@
 # Deployment plan
 
+For the user's selected separate hosting layout, use the [Render server / Vercel client settings](separate-deployment.md). The combined layout below remains an alternative. Both deployment folders now include their own complete lockfile and build dependencies, and the API can start without a frontend build.
+
 Implementation update: the code prerequisites have been addressed in [the reliability implementation](reliability-implementation.md). Use its migration/bootstrap instructions with the staging and rollout gates below.
 
 Reviewed: 10 October 2026. This is a proposed rollout for the current repository; hosting and infrastructure remain proposed; local hardening and a disposable load smoke check are documented in the implementation report.

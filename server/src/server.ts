@@ -8,7 +8,7 @@ import { connectDatabase } from './config/database.js';
 
 try {
   await connectDatabase();
-  const server = app.listen(env.PORT, () =>
+  const server = app.listen(env.PORT, '0.0.0.0', () =>
     console.log(`API listening on http://localhost:${env.PORT}`),
   );
   const stopMetrics = startMetrics();

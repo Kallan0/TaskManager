@@ -79,6 +79,12 @@ export async function request<T>(
         },
       );
     }
+    if (!body || typeof body !== 'object' || !('data' in body))
+      throw new ApiError(502, {
+        code: 'INVALID_API_RESPONSE',
+        message:
+          'The server returned an unexpected response. Please try again.',
+      });
     if (eligible) pendingCreates.delete(fingerprint);
     return body.data;
   } catch (error) {

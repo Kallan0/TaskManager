@@ -6,6 +6,7 @@
     "server"
   ],
   "scripts": {
+    "test:deployment": "node scripts/check-separate-deployment.mjs",
     "db:setup": "node scripts/setup-local.mjs && npm run db:start",
     "db:start": "node scripts/local-db.mjs start",
     "db:stop": "node scripts/local-db.mjs stop",

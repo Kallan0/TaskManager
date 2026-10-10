@@ -1,22 +1,31 @@
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 
-const lock = JSON.parse(
-  await readFile(new URL('../package-lock.json', import.meta.url), 'utf8'),
-);
 const problems = [];
-for (const [parentPath, parent] of Object.entries(lock.packages)) {
-  for (const [name, version] of Object.entries(
-    parent.optionalDependencies ?? {},
-  )) {
-    if (!name.startsWith('@rollup/rollup-') && !name.startsWith('@esbuild/'))
-      continue;
-    const prefix = parentPath.slice(0, parentPath.lastIndexOf('node_modules/'));
-    const entry = lock.packages[`${prefix}node_modules/${name}`];
-    if (!entry || entry.version !== version || !entry.integrity)
-      problems.push(
-        `${parentPath}: missing or inconsistent ${name}@${version}`,
+for (const path of [
+  '../package-lock.json',
+  '../client/package-lock.json',
+  '../server/package-lock.json',
+]) {
+  const lock = JSON.parse(
+    await readFile(new URL(path, import.meta.url), 'utf8'),
+  );
+  for (const [parentPath, parent] of Object.entries(lock.packages)) {
+    for (const [name, version] of Object.entries(
+      parent.optionalDependencies ?? {},
+    )) {
+      if (!name.startsWith('@rollup/rollup-') && !name.startsWith('@esbuild/'))
+        continue;
+      const prefix = parentPath.slice(
+        0,
+        parentPath.lastIndexOf('node_modules/'),
       );
+      const entry = lock.packages[`${prefix}node_modules/${name}`];
+      if (!entry || entry.version !== version || !entry.integrity)
+        problems.push(
+          `${path} ${parentPath}: missing or inconsistent ${name}@${version}`,
+        );
+    }
   }
 }
 if (problems.length)
