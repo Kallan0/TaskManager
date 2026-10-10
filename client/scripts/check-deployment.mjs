@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 export function validateBackendOrigin(value) {
   let url;
   try {
@@ -19,5 +21,11 @@ export function validateBackendOrigin(value) {
     );
 }
 
-if (process.env.VERCEL === '1')
-  validateBackendOrigin(process.env.RENDER_API_URL);
+if (process.env.VERCEL === '1') {
+  const config = JSON.parse(
+    await readFile(new URL('../vercel.json', import.meta.url), 'utf8'),
+  );
+  if (config.routes.some((route) => route.env?.includes('RENDER_API_URL')))
+    validateBackendOrigin(process.env.RENDER_API_URL);
+  else console.info('Frontend-only deployment: no backend URL required.');
+}

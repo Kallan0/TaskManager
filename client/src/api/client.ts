@@ -74,8 +74,14 @@ export async function request<T>(
       throw new ApiError(
         response.status,
         body?.error ?? {
-          code: 'REQUEST_FAILED',
-          message: 'Unable to reach the server. Please try again',
+          code:
+            response.headers?.get('X-Planner-Deployment') === 'frontend-only'
+              ? 'BACKEND_NOT_CONNECTED'
+              : 'REQUEST_FAILED',
+          message:
+            response.headers?.get('X-Planner-Deployment') === 'frontend-only'
+              ? 'This site currently hosts the frontend only. The backend is not connected yet.'
+              : 'Unable to reach the server. Please try again',
         },
       );
     }

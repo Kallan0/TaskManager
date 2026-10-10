@@ -15,7 +15,7 @@ const baseEnv = {
   NODE_ENV: 'production',
   VITE_API_BASE_URL: '/api/v1',
   VERCEL: '1',
-  RENDER_API_URL: 'https://backend.example.test',
+  RENDER_API_URL: undefined,
   MONGOMS_DOWNLOAD_DIR: resolve(root, '.cache/mongodb'),
   MONGOMS_DISABLE_POSTINSTALL: '1',
 };
@@ -75,11 +75,16 @@ await Promise.all(
 const config = JSON.parse(
   await readFile(join(directory, 'client/vercel.json'), 'utf8'),
 );
-const proxy = config.routes.find((route) =>
-  route.dest?.includes('${RENDER_API_URL}'),
-);
-if (!proxy || !proxy.env.includes('RENDER_API_URL'))
-  throw new Error('API proxy is not configured');
+const proxy = config.routes.find((route) => route.src === '/api(?:/(.*))?');
+if (
+  !proxy ||
+  !(
+    proxy.env?.includes('RENDER_API_URL') ||
+    (proxy.status === 503 &&
+      proxy.headers?.['X-Planner-Deployment'] === 'frontend-only')
+  )
+)
+  throw new Error('API proxy or frontend-only response is not configured');
 const apiPattern = new RegExp(`^${proxy.src}$`);
 for (const path of ['/api/v1/auth/login', '/api/v1/teams', '/api/v1/unknown'])
   if (!apiPattern.test(path))
@@ -90,7 +95,7 @@ const asset404 = config.routes.find(
 if (!asset404 || config.routes.at(-1).dest !== '/index.html')
   throw new Error('Missing-asset or SPA routing is invalid');
 console.info(
-  'PASS Vercel: API proxy precedes static files and SPA fallback; missing assets remain 404',
+  'PASS Vercel: API handling precedes static files and SPA fallback; missing assets remain 404',
 );
 await rename(join(directory, 'client'), join(directory, 'frontend'));
 

@@ -1,5 +1,13 @@
 # Separate frontend and backend deployment
 
+## Frontend only (current default)
+
+You can deploy the frontend now without creating a Render service. Use Vercel root `client`, install `npm ci --include=dev --include=optional --workspaces=false`, build `npm run build`, output `dist`, and Node 24. No start command or backend URL is needed. Keep `VITE_API_BASE_URL=/api/v1` if setting it explicitly.
+
+The default `client/vercel.json` serves the UI and SPA routes, and returns an explicit 503 for API requests with `X-Planner-Deployment: frontend-only`. The UI explains that the backend is not connected when an API action is attempted. Actual login, registration and mission data require the backend later; this does not create a demo account or fake persisted data.
+
+When ready to connect the backend, replace `client/vercel.json` with the preserved `client/vercel.backend.json`, set Vercel's `RENDER_API_URL` and Render's `CLIENT_URL`, then redeploy. The remainder of this guide describes that connected setup.
+
 Deploy the backend from `server` on Render and the frontend from `client` on Vercel. Each folder has its own TypeScript dependency, Node requirement, sources and complete cross-platform lockfile. Neither deployment requires its sibling or the repository root. The backend does not need a frontend build; combined hosting still works when one is present.
 
 ## Render
@@ -40,11 +48,11 @@ Production stops with `DATABASE_MIGRATION_REQUIRED` when the target has not been
 | Output Directory | `dist`                                                       |
 | Start Command    | None                                                         |
 
-Set Node 24, `VITE_API_BASE_URL=/api/v1` and `RENDER_API_URL=https://your-backend.onrender.com`. `RENDER_API_URL` is an HTTPS origin without credentials, paths, query or trailing slash. It is consumed by Vercel routing, not compiled into browser code. Vercel builds fail clearly when it is missing or invalid. Files outside the root directory are no longer required. The browser sends API requests through Vercel rather than directly to the different-site Render URL.
+For the optional backend-connected configuration, set Node 24, `VITE_API_BASE_URL=/api/v1` and `RENDER_API_URL=https://your-backend.onrender.com`. `RENDER_API_URL` is an HTTPS origin without credentials, paths, query or trailing slash. It is consumed by Vercel routing, not compiled into browser code. Only builds using the backend-connected template require this variable. Files outside the root directory are not required.
 
 Both folders declare their own TypeScript build dependency. Keep development dependencies included during installation; production-only installs omit the compiler and Vite.
 
-The checked-in `client/vercel.json` configures install/build/output, security/cache headers, the environment-backed API proxy and SPA routing. Remove conflicting old dashboard overrides or match the settings above. There is no hardcoded backend hostname to edit. The API route uses Vercel's supported environment expansion:
+The default `client/vercel.json` configures frontend-only hosting. The optional `client/vercel.backend.json` preserves the environment-backed API proxy with the same build/static/security settings. Remove conflicting old dashboard overrides or match the settings above. The backend-connected API route uses Vercel's supported environment expansion:
 
 ```json
 {

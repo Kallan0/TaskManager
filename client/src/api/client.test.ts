@@ -6,6 +6,27 @@ afterEach(() => {
   clearPendingRequests();
 });
 describe('Bounded network requests and retry identity', () => {
+  it('explains that the backend is not connected for a frontend-only deployment', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 503,
+        ok: false,
+        headers: new Headers({ 'X-Planner-Deployment': 'frontend-only' }),
+        json: async () => {
+          throw new SyntaxError('Vercel error page');
+        },
+      }),
+    );
+    await expect(
+      request('/auth/login', { method: 'POST', body: '{}' }),
+    ).rejects.toMatchObject({
+      error: {
+        code: 'BACKEND_NOT_CONNECTED',
+        message: expect.stringContaining('frontend only'),
+      },
+    });
+  });
   it('rejects HTML returned by a broken deployment route and retains the retry key', async () => {
     const fetch = vi.fn().mockResolvedValue({
       status: 200,

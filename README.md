@@ -108,7 +108,7 @@ Invitation links still expire in 48 hours and need no SMTP. A link holder reques
 
 ## Production configuration
 
-For independent Render (`server`) and Vercel (`client`) deployment, use the [separate deployment guide](docs/separate-deployment.md). Each folder has a standalone lockfile and build dependencies; no sibling files are required. `client/vercel.json` proxies API requests using the Vercel `RENDER_API_URL` environment variable. Run `npm run test:deployment` to check clean independent installs, builds and disposable production API startup.
+For independent Render (`server`) and Vercel (`client`) deployment, use the [separate deployment guide](docs/separate-deployment.md). Each folder has a standalone lockfile and build dependencies; no sibling files are required. The default Vercel configuration hosts only the frontend and needs no backend URL. The optional `client/vercel.backend.json` template connects API requests using `RENDER_API_URL`. Run `npm run test:deployment` to check clean independent installs, builds and disposable production API startup.
 
 Deployment preparation and scaling review:
 

@@ -18,9 +18,11 @@
     },
     {
       "src": "/api(?:/(.*))?",
-      "dest": "${RENDER_API_URL}/api/$1",
-      "env": ["RENDER_API_URL"],
-      "headers": { "Cache-Control": "no-store" }
+      "status": 503,
+      "headers": {
+        "Cache-Control": "no-store",
+        "X-Planner-Deployment": "frontend-only"
+      }
     },
     {
       "src": "/assets/.*",
