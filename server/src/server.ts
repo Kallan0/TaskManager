@@ -36,9 +36,23 @@ try {
   };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
-} catch {
+} catch (error) {
+  const message = error instanceof Error ? error.message : '';
+  const category = /migration/i.test(message)
+    ? 'DATABASE_MIGRATION_REQUIRED'
+    : /replica|mongos|transaction/i.test(message)
+      ? 'DATABASE_REPLICA_SET_REQUIRED'
+      : /auth|credential/i.test(message)
+        ? 'DATABASE_AUTHENTICATION_FAILED'
+        : /ECONN|ENOTFOUND|timeout|server selection|connect/i.test(message)
+          ? 'DATABASE_CONNECTION_FAILED'
+          : 'STARTUP_CHECK_FAILED';
   console.error(
     'API startup failed. Check environment configuration and MongoDB connectivity.',
+    {
+      category,
+      errorType: error instanceof Error ? error.name : 'UnknownError',
+    },
   );
   process.exit(1);
 }

@@ -110,9 +110,8 @@ app.use('/api/v1/teams', teamRouter);
 app.use('/api/v1/invitations', invitationRouter);
 if (env.NODE_ENV === 'production') {
   const dist = fileURLToPath(new URL('../../client/dist/', import.meta.url));
-  if (!existsSync(resolve(dist, 'index.html')))
-    throw new Error('Build the frontend before starting production');
-  {
+  // A separately hosted frontend is optional for an API-only deployment.
+  if (existsSync(resolve(dist, 'index.html'))) {
     app.use(
       '/assets',
       express.static(resolve(dist, 'assets'), {

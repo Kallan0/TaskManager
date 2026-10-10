@@ -42,7 +42,7 @@ npm.cmd run db:retention -w server
 npm.cmd run db:retention -w server -- --apply
 ```
 
-Production settings: `NODE_ENV=production`, exact HTTPS `CLIENT_URL`, `VITE_API_BASE_URL=/api/v1` at build time, private `SESSION_SECRET`, replica-set `MONGODB_URI`, and `DB_POOL_SIZE` (default 20 per process). Keep `TRUST_PROXY_HOPS=0` until the proxy is verified. If enabling it, also set `PROXY_TRUST_CONFIRMED=true`. Start with `npm run start -w server`; the compiled frontend must exist.
+Production settings: `NODE_ENV=production`, exact HTTPS `CLIENT_URL`, `VITE_API_BASE_URL=/api/v1` at build time, private `SESSION_SECRET`, replica-set `MONGODB_URI`, and `DB_POOL_SIZE` (default 20 per process). Keep `TRUST_PROXY_HOPS=0` until the proxy is verified. If enabling it, also set `PROXY_TRUST_CONFIRMED=true`. Start with `npm run start -w server` from the repository root, or `npm start` from `server`. The frontend build is optional: when present, Express serves it; otherwise the server runs as an API only. See [separate deployment](separate-deployment.md) for Render and Vercel folder settings.
 
 The migration copies only still-retained embedded history from the last 365 days, using event IDs to avoid duplicates. It does not silently change existing roles or drop old indexes. Existing legacy missions without approval state become approved, preserving their prior behavior. Run it before opening the upgraded UI to existing users so historical activity and member search are populated.
 
